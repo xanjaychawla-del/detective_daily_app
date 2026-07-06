@@ -247,8 +247,9 @@ async function callGemini(apiKey: string, userMessage: string): Promise<string> 
       system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: "user", parts: [{ text: userMessage }] }],
       generationConfig: {
-        maxOutputTokens: 8000,
+        maxOutputTokens: 16000,
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   });
