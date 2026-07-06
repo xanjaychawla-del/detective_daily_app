@@ -35,6 +35,11 @@ class CaseBriefingHeader extends ConsumerWidget {
             children: [
               Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white70),
+                    tooltip: 'Case Files',
+                    onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                  ),
                   Expanded(
                     child: Text(
                       'DETECTIVE DAILY · ${_formatToday()}',

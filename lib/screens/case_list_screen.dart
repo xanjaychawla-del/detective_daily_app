@@ -7,8 +7,9 @@ import '../game_engine/game_state.dart';
 import 'home_shell.dart';
 
 /// The app's launch screen: every case (authored + AI-generated) with its
-/// play status, plus the "Get New Case" action that has the AI author a
-/// brand-new case and persist it to Supabase.
+/// play status, split across Unsolved/New/Archive tabs, plus the "Get New
+/// Case" action that has the AI author a brand-new case and persist it to
+/// Supabase.
 class CaseListScreen extends ConsumerStatefulWidget {
   const CaseListScreen({super.key});
 
@@ -57,48 +58,113 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen> {
   Widget build(BuildContext context) {
     final casesAsync = ref.watch(caseListProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Detective Daily')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: casesAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, _) => Center(child: Text('Could not load cases: $err')),
-                data: (entries) => entries.isEmpty
-                    ? const Center(child: Text('No cases yet.'))
-                    : RefreshIndicator(
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Case Files'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Unsolved'),
+              Tab(text: 'New'),
+              Tab(text: 'Archive'),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: casesAsync.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, _) => Center(child: Text('Could not load cases: $err')),
+                  data: (entries) => TabBarView(
+                    children: [
+                      _CaseTab(
+                        entries: entries
+                            .where((e) => e.status == PlayStatus.inProgress || e.status == PlayStatus.gaveUp)
+                            .toList(),
+                        emptyMessage: 'No unsolved cases right now.',
+                        onOpen: _openCase,
                         onRefresh: () async => ref.invalidate(caseListProvider),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: entries.length,
-                          itemBuilder: (context, index) => _CaseCard(
-                            entry: entries[index],
-                            onTap: () => _openCase(entries[index]),
-                          ),
-                        ),
                       ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _generating ? null : _getNewCase,
-                  icon: _generating
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome),
-                  label: Text(_generating ? 'Generating case...' : 'Get New Case'),
+                      _CaseTab(
+                        entries: entries.where((e) => e.status == PlayStatus.unopened).toList(),
+                        emptyMessage: 'No new cases waiting.',
+                        onOpen: _openCase,
+                        onRefresh: () async => ref.invalidate(caseListProvider),
+                      ),
+                      _CaseTab(
+                        entries: entries.where((e) => e.status == PlayStatus.solved).toList(),
+                        emptyMessage: 'Solved cases will show up here.',
+                        onOpen: _openCase,
+                        onRefresh: () async => ref.invalidate(caseListProvider),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _generating ? null : _getNewCase,
+                    icon: _generating
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome),
+                    label: Text(_generating ? 'Generating case...' : 'Get New Case'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CaseTab extends StatelessWidget {
+  final List<CaseListEntry> entries;
+  final String emptyMessage;
+  final void Function(CaseListEntry) onOpen;
+  final Future<void> Function() onRefresh;
+
+  const _CaseTab({
+    required this.entries,
+    required this.emptyMessage,
+    required this.onOpen,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          children: [
+            SizedBox(
+              height: 300,
+              child: Center(child: Text(emptyMessage, style: const TextStyle(color: Colors.white54))),
             ),
           ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: entries.length,
+        itemBuilder: (context, index) => _CaseCard(
+          entry: entries[index],
+          onTap: () => onOpen(entries[index]),
         ),
       ),
     );
@@ -144,7 +210,7 @@ class _StatusPill extends StatelessWidget {
       PlayStatus.solved => ('Solved', Colors.green),
       PlayStatus.gaveUp => ('Unsolved', Colors.orange),
       PlayStatus.inProgress => ('Unsolved', Colors.orange),
-      PlayStatus.unopened => ('Unopened', Colors.grey),
+      PlayStatus.unopened => ('New', Colors.grey),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
