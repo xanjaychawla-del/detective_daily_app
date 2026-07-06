@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/env.dart';
 import 'core/theme.dart';
-import 'screens/case_list_screen.dart';
+import 'screens/loading_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +21,7 @@ class DetectiveDailyApp extends StatelessWidget {
       title: 'Detective Daily',
       debugShowCheckedModeBanner: false,
       theme: buildDetectiveDailyTheme(),
-      home: const CaseListScreen(),
+      home: const LoadingScreen(),
     );
   }
 }
