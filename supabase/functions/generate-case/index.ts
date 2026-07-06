@@ -285,7 +285,21 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "server_misconfigured" }, 500);
   }
 
-  let prompt = "Author one brand-new case now, following the schema and rules exactly.";
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  // Without this, independent generations tend to converge on the same
+  // handful of tropes (title collisions like two different "Missing
+  // Meteorite" cases have been observed) since nothing tells the model
+  // what already exists.
+  const { data: existingCases } = await supabase.from("cases").select("title");
+  const existingTitles = (existingCases ?? []).map((c) => c.title as string);
+  const noRepeatInstruction = existingTitles.length > 0
+    ? `\n\nThese case titles already exist -- do not reuse any of them, and invent a clearly different setting, crime, and premise from each (not just a reworded title):\n${
+      existingTitles.map((t) => `- ${t}`).join("\n")
+    }`
+    : "";
+
+  let prompt = `Author one brand-new case now, following the schema and rules exactly.${noRepeatInstruction}`;
   let lastErrors: string[] = [];
   let parsed: Record<string, unknown> | null = null;
 
@@ -339,7 +353,6 @@ Deno.serve(async (req: Request) => {
     source: "ai_generated",
   };
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
   const { error: insertError } = await supabase.from("cases").insert(row);
   if (insertError) {
     console.error("cases insert error:", insertError.message);
