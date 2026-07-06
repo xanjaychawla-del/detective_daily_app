@@ -12,7 +12,7 @@ class AccusationScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theCase = ref.watch(caseProvider);
+    final theCase = ref.watch(caseProvider)!;
     final gameState = ref.watch(gameStateProvider);
     final hardMode = ref.watch(hardModeProvider);
     final available = theCase.suspects.where((s) => !gameState.ruledOutSuspectIds.contains(s.id)).toList();
@@ -50,7 +50,7 @@ class AccusationScreen extends ConsumerWidget {
                 if (ruledOutCount > 0)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text('$ruledOutCount suspect(s) ruled out.', style: const TextStyle(color: Colors.grey)),
+                    child: Text('$ruledOutCount suspect(s) ruled out.', style: const TextStyle(color: Colors.white54)),
                   ),
               ],
             ),
@@ -83,7 +83,7 @@ class AccusationScreen extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
-    final wasCorrect = suspect.id == ref.read(caseProvider).solution.culpritId;
+    final wasCorrect = suspect.id == ref.read(caseProvider)!.solution.culpritId;
     ref.read(gameStateProvider.notifier).accuse(suspect.id);
     if (!wasCorrect && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

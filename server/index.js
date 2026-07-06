@@ -2,23 +2,21 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const Anthropic = require('@anthropic-ai/sdk');
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
-const client = apiKey ? new Anthropic({ apiKey }) : null;
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
+const apiKey = process.env.GEMINI_API_KEY;
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (_req, res) => res.json({ ok: true, configured: Boolean(client) }));
+app.get('/health', (_req, res) => res.json({ ok: true, configured: Boolean(apiKey) }));
 
 // The AI Adapter endpoint: takes exactly one Truth Engine fact plus enough
 // persona/context to phrase it naturally, and returns only that phrasing.
 // It is never given the full case file and can't invent new facts.
 app.post('/api/narrate', async (req, res) => {
-  if (!client) {
+  if (!apiKey) {
     return res.status(500).json({ error: 'server_misconfigured' });
   }
 
@@ -46,30 +44,52 @@ ${fact.trim()}
 """`;
 
   const priorTurns = Array.isArray(history) ? history.slice(-6) : [];
-  const messages = priorTurns.map((turn) => ({
-    role: turn && turn.role === 'suspect' ? 'assistant' : 'user',
-    content: String((turn && turn.text) || ''),
+  const contents = priorTurns.map((turn) => ({
+    role: turn && turn.role === 'suspect' ? 'model' : 'user',
+    parts: [{ text: String((turn && turn.text) || '') }],
   }));
-  messages.push({
+  contents.push({
     role: 'user',
-    content: `Category: ${category || 'general'}. Say the fact above, in character, now.`,
+    parts: [{ text: `Category: ${category || 'general'}. Say the fact above, in character, now.` }],
   });
 
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 200,
-      system: systemPrompt,
-      messages,
+    const response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 200,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      }),
     });
-    const textBlock = (response.content || []).find((block) => block.type === 'text');
-    const reply = textBlock?.text?.trim();
-    if (!reply) {
-      return res.status(502).json({ error: 'empty_reply' });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      console.error('Gemini upstream error:', response.status, raw);
+      return res.status(502).json({ error: 'upstream_error' });
     }
+
+    let reply;
+    try {
+      const outer = JSON.parse(raw);
+      const text = outer.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error('empty_gemini_text');
+      reply = text.trim();
+    } catch (parseErr) {
+      console.error('Gemini parse failed:', parseErr, raw);
+      return res.status(502).json({ error: 'parse_failed' });
+    }
+
     res.json({ reply });
   } catch (err) {
-    console.error('Anthropic error:', err?.message || err);
+    console.error('Gemini error:', err?.message || err);
     res.status(502).json({ error: 'upstream_error' });
   }
 });
@@ -77,7 +97,7 @@ ${fact.trim()}
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`Detective Daily narration proxy listening on http://localhost:${port}`);
-  if (!client) {
-    console.warn('ANTHROPIC_API_KEY is not set -- /api/narrate will return server_misconfigured until it is.');
+  if (!apiKey) {
+    console.warn('GEMINI_API_KEY is not set -- /api/narrate will return server_misconfigured until it is.');
   }
 });

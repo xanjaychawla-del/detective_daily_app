@@ -26,7 +26,7 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   final ScrollController _scroll = ScrollController();
   bool _loading = false;
 
-  Suspect get _suspect => ref.read(caseProvider).suspectById(widget.suspectId);
+  Suspect get _suspect => ref.read(caseProvider)!.suspectById(widget.suspectId);
 
   @override
   void initState() {
@@ -101,7 +101,7 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
 
   void _openEvidenceSheet() {
     final unlocked = ref.read(gameStateProvider).unlockedEvidenceIds;
-    final items = ref.read(caseProvider).evidence.where((e) => unlocked.contains(e.id)).toList();
+    final items = ref.read(caseProvider)!.evidence.where((e) => unlocked.contains(e.id)).toList();
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(

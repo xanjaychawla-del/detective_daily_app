@@ -1,26 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'game_engine/game_state.dart';
-import 'screens/home_shell.dart';
-import 'truth_engine/case_loader.dart';
+import 'core/env.dart';
+import 'core/theme.dart';
+import 'screens/case_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final cases = await Future.wait([
-    loadCase('assets/cases/museum_diamond.json'),
-    loadCase('assets/cases/flight_914.json'),
-    loadCase('assets/cases/meridian_station.json'),
-  ]);
-  runApp(
-    ProviderScope(
-      overrides: [
-        allCasesProvider.overrideWithValue(cases),
-        caseProvider.overrideWith((ref) => cases.first),
-      ],
-      child: const DetectiveDailyApp(),
-    ),
-  );
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  runApp(const ProviderScope(child: DetectiveDailyApp()));
 }
 
 class DetectiveDailyApp extends StatelessWidget {
@@ -31,8 +20,8 @@ class DetectiveDailyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Detective Daily',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-      home: const HomeShell(),
+      theme: buildDetectiveDailyTheme(),
+      home: const CaseListScreen(),
     );
   }
 }

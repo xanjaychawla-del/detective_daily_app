@@ -12,7 +12,7 @@ class EvidenceBoardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theCase = ref.watch(caseProvider);
+    final theCase = ref.watch(caseProvider)!;
     final gameState = ref.watch(gameStateProvider);
     final notifier = ref.read(gameStateProvider.notifier);
     final hardMode = ref.watch(hardModeProvider);
@@ -68,7 +68,7 @@ class _TimelineTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final confirmed = entry.type == TimelineEntryType.confirmed;
-    final color = confirmed ? Colors.amber.shade800 : Colors.grey.shade600;
+    final color = confirmed ? Colors.amber.shade300 : Colors.white54;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -87,7 +87,7 @@ class _TimelineTile extends StatelessWidget {
           Expanded(
             child: Text(
               entry.text,
-              style: TextStyle(color: confirmed ? null : Colors.grey.shade600, fontStyle: confirmed ? FontStyle.normal : FontStyle.italic),
+              style: TextStyle(color: confirmed ? null : Colors.white54, fontStyle: confirmed ? FontStyle.normal : FontStyle.italic),
             ),
           ),
         ],
@@ -137,7 +137,7 @@ class _EvidenceTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.lock, size: 18, color: Colors.grey),
+          const Icon(Icons.lock, size: 18, color: Colors.white38),
           const SizedBox(width: 8),
           Expanded(child: Text(evidence.label)),
           TextButton(
@@ -171,9 +171,9 @@ class _BackgroundCheckTile extends StatelessWidget {
     if (!interviewed) {
       return Row(
         children: const [
-          Icon(Icons.lock, size: 18, color: Colors.grey),
+          Icon(Icons.lock, size: 18, color: Colors.white38),
           SizedBox(width: 8),
-          Expanded(child: Text('Interview this suspect first.', style: TextStyle(color: Colors.grey))),
+          Expanded(child: Text('Interview this suspect first.', style: TextStyle(color: Colors.white38))),
         ],
       );
     }

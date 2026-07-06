@@ -1,16 +1,20 @@
 # Detective Daily narration proxy (dev-only)
 
-Holds the Anthropic API key server-side so it never ships inside the Flutter
+Holds the Gemini API key server-side so it never ships inside the Flutter
 app bundle. This is the **AI Adapter** layer: it receives one Truth Engine
 fact plus a suspect's persona and returns only a natural phrasing of that
 fact — it never invents facts or reveals guilt.
+
+Uses Gemini (via Google AI Studio's free tier, `gemini-2.5-flash` by default)
+rather than a paid API, matching the same provider already used by
+`cat_rarity_app`'s `chat-with-kitty` and `gemini-scan` edge functions.
 
 ## Setup
 
 ```
 cd server
 npm install
-cp .env.example .env   # then fill in ANTHROPIC_API_KEY
+cp .env.example .env   # then fill in GEMINI_API_KEY (get one at aistudio.google.com)
 npm start
 ```
 

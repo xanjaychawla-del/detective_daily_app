@@ -9,18 +9,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../truth_engine/models.dart';
 
-/// All cases bundled with the app. A real Case Repository would serve
-/// these from a backlog instead; for now "New Case" just rotates through
-/// this fixed list.
-final allCasesProvider = Provider<List<Case>>((ref) {
-  throw UnimplementedError('allCasesProvider must be overridden with the loaded cases in main()');
-});
-
-/// The currently active case. Mutable so "New Case" can switch it --
-/// GameStateNotifier watches this and resets automatically when it changes.
-final caseProvider = StateProvider<Case>((ref) {
-  throw UnimplementedError('caseProvider must be overridden with the loaded Case in main()');
-});
+/// The currently active case, set when the player picks one on the
+/// CaseListScreen. Null until then -- every screen that reads this is only
+/// ever built inside HomeShell, which is only pushed after a case is chosen,
+/// so reads there can safely assume non-null.
+final caseProvider = StateProvider<Case?>((ref) => null);
 
 /// Focus is off by default -- evidence and background checks are free, and
 /// wrong accusations carry no penalty. Turning this on (a difficulty
@@ -99,11 +92,11 @@ String _factProgressKey(String suspectId, FactCategory category) => '$suspectId|
 class GameStateNotifier extends Notifier<GameState> {
   @override
   GameState build() {
-    final theCase = ref.watch(caseProvider);
+    final theCase = ref.watch(caseProvider)!;
     return GameState.initial(theCase.startingFocus);
   }
 
-  Case get _case => ref.read(caseProvider);
+  Case get _case => ref.read(caseProvider)!;
 
   bool get isConcluded => state.outcome != GameOutcome.inProgress;
 

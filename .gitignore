@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local dart-define secrets (Supabase keys, etc.)
+dart_defines.*.json
+!dart_defines.example.json
+
+# Local narration proxy secrets
+server/.env

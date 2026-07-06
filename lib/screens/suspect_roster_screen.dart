@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/theme.dart';
 import '../game_engine/game_state.dart';
 import 'interrogation_screen.dart';
 
@@ -13,7 +14,7 @@ class SuspectRosterScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theCase = ref.watch(caseProvider);
+    final theCase = ref.watch(caseProvider)!;
     final gameState = ref.watch(gameStateProvider);
     final notifier = ref.read(gameStateProvider.notifier);
 
@@ -34,23 +35,18 @@ class SuspectRosterScreen extends ConsumerWidget {
             child: ListTile(
               leading: CircleAvatar(child: Text(suspect.name.substring(0, 1))),
               title: Text(suspect.name),
-              subtitle: Text(suspect.role),
+              subtitle: Text(suspect.role, style: const TextStyle(color: Colors.white60)),
               trailing: Wrap(
                 spacing: 6,
+                runSpacing: 4,
+                alignment: WrapAlignment.end,
                 children: [
-                  if (interviewed)
-                    Tooltip(
-                      message: fullyInterviewed ? 'Fully interviewed' : 'Interview in progress',
-                      child: Icon(
-                        Icons.check_circle,
-                        color: fullyInterviewed ? Colors.green : Colors.orange,
-                        size: 20,
-                      ),
-                    ),
-                  if (contradiction)
-                    const Tooltip(message: 'Contradiction found', child: Icon(Icons.flag, color: Colors.deepOrange, size: 20)),
-                  if (ruledOut)
-                    const Tooltip(message: 'Ruled out', child: Icon(Icons.block, color: Colors.grey, size: 20)),
+                  _StatusPill(
+                    label: interviewed ? (fullyInterviewed ? 'Interviewed' : 'Interview in progress') : 'Not interviewed',
+                    color: interviewed ? (fullyInterviewed ? Colors.greenAccent : kAccentAmber) : Colors.white38,
+                  ),
+                  if (contradiction) const _StatusPill(label: 'Contradiction found', color: Colors.deepOrangeAccent),
+                  if (ruledOut) const _StatusPill(label: 'Ruled out', color: Colors.white38),
                 ],
               ),
               enabled: !ruledOut,
@@ -65,4 +61,24 @@ class SuspectRosterScreen extends ConsumerWidget {
       },
     );
   }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+      );
 }

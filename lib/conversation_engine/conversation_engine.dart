@@ -14,7 +14,7 @@ class ConversationEngine {
   ConversationEngine(this.ref);
 
   GameStateNotifier get _game => ref.read(gameStateProvider.notifier);
-  Case get _case => ref.read(caseProvider);
+  Case get _case => ref.read(caseProvider)!;
 
   /// Opens an interrogation with a suspect. The first time a suspect is
   /// opened, their opening statement (their one seeded lie, if the case

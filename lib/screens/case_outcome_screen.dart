@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../case_repository/case_repository_providers.dart';
+import '../case_repository/case_repository_service.dart';
 import '../game_engine/game_state.dart';
 
 /// Solving and giving up share this screen and both show the full
@@ -11,7 +13,7 @@ class CaseOutcomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theCase = ref.watch(caseProvider);
+    final theCase = ref.watch(caseProvider)!;
     final gameState = ref.watch(gameStateProvider);
     final hardMode = ref.watch(hardModeProvider);
     final solved = gameState.outcome == GameOutcome.solved;
@@ -51,9 +53,11 @@ class CaseOutcomeScreen extends ConsumerWidget {
                     child: OutlinedButton(
                       onPressed: () {
                         // Same case, fresh session -- just resets progress.
+                        // A single pop returns to the HomeShell already on
+                        // the stack underneath this outcome screen.
                         ref.invalidate(gameStateProvider);
                         ref.read(homeTabIndexProvider.notifier).state = 0;
-                        Navigator.of(context).popUntil((route) => route.isFirst);
+                        Navigator.of(context).pop();
                       },
                       child: const Text('Play Again'),
                     ),
@@ -61,17 +65,18 @@ class CaseOutcomeScreen extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () {
-                        final cases = ref.read(allCasesProvider);
-                        final currentIndex = cases.indexWhere((c) => c.id == theCase.id);
-                        final nextCase = cases[(currentIndex + 1) % cases.length];
-                        // Switching caseProvider's value makes GameStateNotifier
-                        // rebuild from scratch for the new case automatically.
-                        ref.read(caseProvider.notifier).state = nextCase;
-                        ref.read(homeTabIndexProvider.notifier).state = 0;
+                      onPressed: () async {
+                        final deviceId = await ref.read(deviceIdProvider.future);
+                        await ref.read(caseRepositoryServiceProvider).setPlayStatus(
+                              deviceId,
+                              theCase.id,
+                              solved ? PlayStatus.solved : PlayStatus.gaveUp,
+                            );
+                        ref.invalidate(caseListProvider);
+                        if (!context.mounted) return;
                         Navigator.of(context).popUntil((route) => route.isFirst);
                       },
-                      child: const Text('New Case'),
+                      child: const Text('Back to Cases'),
                     ),
                   ),
                 ],
