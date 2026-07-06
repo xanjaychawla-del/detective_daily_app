@@ -18,6 +18,13 @@ String _playStatusToDb(PlayStatus status) => switch (status) {
       PlayStatus.gaveUp => 'gave_up',
     };
 
+class CaseRatingStats {
+  final double average;
+  final int count;
+
+  const CaseRatingStats({required this.average, required this.count});
+}
+
 class CaseRepositoryService {
   CaseRepositoryService(this._client);
 
@@ -42,11 +49,12 @@ class CaseRepositoryService {
         .toList();
   }
 
-  Future<Map<String, PlayStatus>> fetchPlayStatuses(String deviceId) async {
+  Future<Map<String, PlayStatus>> fetchPlayStatuses() async {
+    final userId = _client.auth.currentUser!.id;
     final rows = await _client
         .from('plays')
         .select('case_id, status')
-        .eq('device_id', deviceId);
+        .eq('user_id', userId);
     return {
       for (final row in rows as List)
         (row as Map<String, dynamic>)['case_id'] as String:
@@ -54,19 +62,16 @@ class CaseRepositoryService {
     };
   }
 
-  Future<void> setPlayStatus(
-    String deviceId,
-    String caseId,
-    PlayStatus status,
-  ) async {
+  Future<void> setPlayStatus(String caseId, PlayStatus status) async {
+    final userId = _client.auth.currentUser!.id;
     await _client.from('plays').upsert(
       {
-        'device_id': deviceId,
+        'user_id': userId,
         'case_id': caseId,
         'status': _playStatusToDb(status),
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
-      onConflict: 'device_id, case_id',
+      onConflict: 'user_id, case_id',
     );
   }
 
@@ -77,5 +82,29 @@ class CaseRepositoryService {
       throw Exception('Case generation failed: ${data is Map ? data['error'] : 'unknown_error'}');
     }
     return Case.fromJson(data['case'] as Map<String, dynamic>);
+  }
+
+  Future<Map<String, CaseRatingStats>> fetchRatingStats() async {
+    final rows = await _client.from('case_rating_stats').select();
+    return {
+      for (final row in rows as List)
+        (row as Map<String, dynamic>)['case_id'] as String: CaseRatingStats(
+          average: (row['avg_rating'] as num).toDouble(),
+          count: row['rating_count'] as int,
+        ),
+    };
+  }
+
+  Future<void> submitRating(String caseId, int rating) async {
+    final userId = _client.auth.currentUser!.id;
+    await _client.from('case_ratings').upsert(
+      {
+        'user_id': userId,
+        'case_id': caseId,
+        'rating': rating,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      },
+      onConflict: 'user_id, case_id',
+    );
   }
 }

@@ -3,16 +3,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../case_repository/case_repository_providers.dart';
 import '../case_repository/case_repository_service.dart';
+import '../core/theme.dart';
 import '../game_engine/game_state.dart';
 
 /// Solving and giving up share this screen and both show the full
 /// narrative reveal -- only the label and framing differ ("Case Closed"
 /// vs "Case Revealed"), never a bare name.
-class CaseOutcomeScreen extends ConsumerWidget {
+class CaseOutcomeScreen extends ConsumerStatefulWidget {
   const CaseOutcomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CaseOutcomeScreen> createState() => _CaseOutcomeScreenState();
+}
+
+class _CaseOutcomeScreenState extends ConsumerState<CaseOutcomeScreen> {
+  int? _selectedRating;
+  bool _ratingSubmitted = false;
+
+  Future<void> _rate(String caseId, int rating) async {
+    setState(() => _selectedRating = rating);
+    try {
+      await ref.read(caseRepositoryServiceProvider).submitRating(caseId, rating);
+      if (mounted) setState(() => _ratingSubmitted = true);
+    } catch (_) {
+      // Rating is a nice-to-have, not core to the case-solving loop --
+      // fail silently rather than blocking the player here.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theCase = ref.watch(caseProvider)!;
     final gameState = ref.watch(gameStateProvider);
     final hardMode = ref.watch(hardModeProvider);
@@ -47,6 +67,28 @@ class CaseOutcomeScreen extends ConsumerWidget {
               _StatRow(label: 'Contradictions found', value: '${gameState.contradictionSuspectIds.length}'),
               if (hardMode) _StatRow(label: 'Focus remaining', value: '${gameState.focus}'),
               const SizedBox(height: 16),
+              Text('Rate this case', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  for (var i = 1; i <= 5; i++)
+                    IconButton(
+                      onPressed: () => _rate(theCase.id, i),
+                      icon: Icon(
+                        _selectedRating != null && i <= _selectedRating!
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: kAccentAmber,
+                      ),
+                    ),
+                  if (_ratingSubmitted)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Text('Thanks!', style: TextStyle(color: Colors.white54)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -66,9 +108,7 @@ class CaseOutcomeScreen extends ConsumerWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: () async {
-                        final deviceId = await ref.read(deviceIdProvider.future);
                         await ref.read(caseRepositoryServiceProvider).setPlayStatus(
-                              deviceId,
                               theCase.id,
                               solved ? PlayStatus.solved : PlayStatus.gaveUp,
                             );

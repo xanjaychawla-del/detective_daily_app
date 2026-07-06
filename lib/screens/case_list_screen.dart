@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../case_repository/case_repository_providers.dart';
 import '../case_repository/case_repository_service.dart';
+import '../core/theme.dart';
 import '../game_engine/game_state.dart';
 import 'home_shell.dart';
 
@@ -22,10 +23,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen> {
 
   Future<void> _openCase(CaseListEntry entry) async {
     if (entry.status == PlayStatus.unopened) {
-      final deviceId = await ref.read(deviceIdProvider.future);
-      await ref
-          .read(caseRepositoryServiceProvider)
-          .setPlayStatus(deviceId, entry.theCase.id, PlayStatus.inProgress);
+      await ref.read(caseRepositoryServiceProvider).setPlayStatus(entry.theCase.id, PlayStatus.inProgress);
       ref.invalidate(caseListProvider);
     }
     ref.read(caseProvider.notifier).state = entry.theCase;
@@ -62,7 +60,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Case Files'),
+          title: const Text('Detective Daily - Case Files'),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Unsolved'),
@@ -188,10 +186,29 @@ class _CaseCard extends StatelessWidget {
         title: Text(theCase.title, style: Theme.of(context).textTheme.titleMedium),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: Text(
-            theCase.briefing,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                theCase.briefing,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (entry.ratingStats != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.star, size: 14, color: kAccentAmber),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${entry.ratingStats!.average.toStringAsFixed(1)} '
+                      '(${entry.ratingStats!.count})',
+                      style: const TextStyle(fontSize: 12, color: Colors.white54),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
         ),
         trailing: _StatusPill(status: entry.status),
