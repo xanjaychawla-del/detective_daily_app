@@ -1,4 +1,15 @@
-# Detective Daily narration proxy (dev-only)
+# Detective Daily narration proxy (DEPRECATED, unused)
+
+The app no longer calls this server. Narration now runs through the
+`supabase/functions/narrate` Edge Function instead, because this local
+proxy was only reachable from an Android emulator (via its `10.0.2.2`
+loopback alias) or another device on the developer's own network -- a
+real phone anywhere else would hang for the full request timeout on
+every line of suspect dialogue before falling back to unnarrated text.
+This directory is kept only as a historical reference and can be
+deleted; nothing in the Flutter app points to it anymore.
+
+---
 
 Holds the Gemini API key server-side so it never ships inside the Flutter
 app bundle. This is the **AI Adapter** layer: it receives one Truth Engine

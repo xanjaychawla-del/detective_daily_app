@@ -18,25 +18,56 @@ class CaseListScreen extends ConsumerStatefulWidget {
   ConsumerState<CaseListScreen> createState() => _CaseListScreenState();
 }
 
-class _CaseListScreenState extends ConsumerState<CaseListScreen> {
+class _CaseListScreenState extends ConsumerState<CaseListScreen>
+    with SingleTickerProviderStateMixin {
   bool _generating = false;
+  bool _didPickInitialTab = false;
+  late final TabController _tabController = TabController(
+    length: 3,
+    vsync: this,
+  );
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // Unsolved is the default tab, but an empty Unsolved list on first load
+  // (a fresh player with nothing in progress yet) isn't a useful landing
+  // spot -- send them to New instead. Only ever done once per screen
+  // lifetime, so it doesn't yank the user back after they switch tabs.
+  void _pickInitialTab(List<CaseListEntry> entries) {
+    if (_didPickInitialTab) return;
+    _didPickInitialTab = true;
+    final hasUnsolved = entries.any(
+      (e) => e.status == PlayStatus.inProgress || e.status == PlayStatus.gaveUp,
+    );
+    if (!hasUnsolved) _tabController.index = 1;
+  }
 
   Future<void> _openCase(CaseListEntry entry) async {
     if (entry.status == PlayStatus.unopened) {
-      await ref.read(caseRepositoryServiceProvider).setPlayStatus(entry.theCase.id, PlayStatus.inProgress);
+      await ref
+          .read(caseRepositoryServiceProvider)
+          .setPlayStatus(entry.theCase.id, PlayStatus.inProgress);
       ref.invalidate(caseListProvider);
     }
     ref.read(caseProvider.notifier).state = entry.theCase;
     ref.read(homeTabIndexProvider.notifier).state = 0;
     if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HomeShell()));
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const HomeShell()));
     ref.invalidate(caseListProvider);
   }
 
   Future<void> _getNewCase() async {
     setState(() => _generating = true);
     try {
-      final newCase = await ref.read(caseRepositoryServiceProvider).generateNewCase();
+      final newCase = await ref
+          .read(caseRepositoryServiceProvider)
+          .generateNewCase();
       ref.invalidate(caseListProvider);
       final entries = await ref.read(caseListProvider.future);
       final entry = entries.firstWhere((e) => e.theCase.id == newCase.id);
@@ -56,71 +87,84 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen> {
   Widget build(BuildContext context) {
     final casesAsync = ref.watch(caseListProvider);
 
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Detective Daily - Case Files'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Unsolved'),
-              Tab(text: 'New'),
-              Tab(text: 'Archive'),
-            ],
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Detective Daily - Case Files'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Unsolved'),
+            Tab(text: 'New'),
+            Tab(text: 'Archive'),
+          ],
         ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: casesAsync.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (err, _) => Center(child: Text('Could not load cases: $err')),
-                  data: (entries) => TabBarView(
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: casesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, _) =>
+                    Center(child: Text('Could not load cases: $err')),
+                data: (entries) {
+                  _pickInitialTab(entries);
+                  return TabBarView(
+                    controller: _tabController,
                     children: [
                       _CaseTab(
                         entries: entries
-                            .where((e) => e.status == PlayStatus.inProgress || e.status == PlayStatus.gaveUp)
+                            .where(
+                              (e) =>
+                                  e.status == PlayStatus.inProgress ||
+                                  e.status == PlayStatus.gaveUp,
+                            )
                             .toList(),
                         emptyMessage: 'No unsolved cases right now.',
                         onOpen: _openCase,
                         onRefresh: () async => ref.invalidate(caseListProvider),
                       ),
                       _CaseTab(
-                        entries: entries.where((e) => e.status == PlayStatus.unopened).toList(),
+                        entries: entries
+                            .where((e) => e.status == PlayStatus.unopened)
+                            .toList(),
                         emptyMessage: 'No new cases waiting.',
                         onOpen: _openCase,
                         onRefresh: () async => ref.invalidate(caseListProvider),
                       ),
                       _CaseTab(
-                        entries: entries.where((e) => e.status == PlayStatus.solved).toList(),
+                        entries: entries
+                            .where((e) => e.status == PlayStatus.solved)
+                            .toList(),
                         emptyMessage: 'Solved cases will show up here.',
                         onOpen: _openCase,
                         onRefresh: () async => ref.invalidate(caseListProvider),
                       ),
                     ],
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _generating ? null : _getNewCase,
+                  icon: _generating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome),
+                  label: Text(
+                    _generating ? 'Generating case...' : 'Get New Case',
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _generating ? null : _getNewCase,
-                    icon: _generating
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.auto_awesome),
-                    label: Text(_generating ? 'Generating case...' : 'Get New Case'),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -149,7 +193,12 @@ class _CaseTab extends StatelessWidget {
           children: [
             SizedBox(
               height: 300,
-              child: Center(child: Text(emptyMessage, style: const TextStyle(color: Colors.white54))),
+              child: Center(
+                child: Text(
+                  emptyMessage,
+                  style: const TextStyle(color: Colors.white54),
+                ),
+              ),
             ),
           ],
         ),
@@ -183,7 +232,10 @@ class _CaseCard extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.all(16),
-        title: Text(theCase.title, style: Theme.of(context).textTheme.titleMedium),
+        title: Text(
+          theCase.title,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Column(
@@ -203,7 +255,10 @@ class _CaseCard extends StatelessWidget {
                     Text(
                       '${entry.ratingStats!.average.toStringAsFixed(1)} '
                       '(${entry.ratingStats!.count})',
-                      style: const TextStyle(fontSize: 12, color: Colors.white54),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white54,
+                      ),
                     ),
                   ],
                 ),
@@ -237,7 +292,11 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
       ),
     );
   }
