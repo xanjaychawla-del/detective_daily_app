@@ -1,0 +1,227 @@
+{
+  "id": "flight-914-poisoning",
+  "title": "Turbulence at 30,000 Feet",
+  "briefing": "Three hours into a transcontinental flight, tech founder Elliot Pryce collapsed after a sip of his in-flight drink -- poisoned, and now recovering in a hospital on the ground below. The captain diverted, the cabin was sealed, and five people in business class are the only ones who could have reached his glass.",
+  "startingFocus": 12,
+  "costs": {
+    "unlockEvidence": 2,
+    "backgroundCheck": 3,
+    "wrongAccusation": 3
+  },
+  "suspects": [
+    {
+      "id": "priya_sethi",
+      "name": "Priya Sethi",
+      "role": "Business Consultant",
+      "persona": "Brisk and efficient, mildly impatient about the disruption to her schedule. Warms up noticeably when the conversation turns to her actual work.",
+      "facts": {
+        "timeline": [
+          { "id": "ps_t1", "text": "I boarded with everyone else, took my seat in 2B, and spent most of the flight finishing a deck on my laptop.", "isLie": false }
+        ],
+        "motive": [
+          { "id": "ps_m1", "text": "I'd never even heard of Elliot Pryce before a flight attendant pointed him out after the fact. I have no history with the man at all.", "isLie": false }
+        ],
+        "relationships": [
+          { "id": "ps_r1", "text": "I exchanged maybe ten words with him the entire flight, mostly complaints about the wifi.", "isLie": false }
+        ],
+        "alibi": [
+          { "id": "ps_a1", "text": "I was at my seat working right up until the commotion started. The woman across the aisle was awake too, she can probably confirm that.", "isLie": false }
+        ],
+        "evidenceReactions": [
+          { "id": "ps_e_cabin_service", "evidenceId": "cabin_service_log", "text": "...I did step into the galley once, to ask for more coffee. I was there maybe thirty seconds. I never went anywhere near his row.", "isLie": false }
+        ]
+      },
+      "backgroundCheck": {
+        "flagged": false,
+        "text": "Clean record. Verified consulting employment, no documented connection to Pryce or his company."
+      },
+      "initialLie": {
+        "id": "ps_lie_seat",
+        "text": "I was in my seat with my laptop the entire flight, I never once got up.",
+        "contradictedByEvidenceId": "cabin_service_log"
+      }
+    },
+    {
+      "id": "marcus_yeun",
+      "name": "Marcus Yeun",
+      "role": "Flight Attendant",
+      "persona": "Professional and clipped, protective of cabin procedure, visibly anxious about liability and his certification.",
+      "facts": {
+        "timeline": [
+          { "id": "my_t1", "text": "Drink service ran normally through business class between the first and second hour. Nothing unusual until Mr. Pryce's collapse.", "isLie": false }
+        ],
+        "motive": [
+          { "id": "my_m1", "text": "I don't have any stake in this beyond keeping my cabin safe. An incident like this is a nightmare for my certification, not something I'd invite.", "isLie": false }
+        ],
+        "relationships": [
+          { "id": "my_r1", "text": "I served him his drink the same as anyone else in that cabin. No relationship beyond that.", "isLie": false }
+        ],
+        "alibi": [
+          { "id": "my_a1", "text": "I was working the cabin for the entire flight, same as any other shift.", "isLie": false }
+        ],
+        "evidenceReactions": [
+          { "id": "my_e_handoff", "evidenceId": "crew_handoff_log", "text": "...I stepped away for about two minutes to help a colleague with a passenger in economy. The cart was unattended in the aisle for that window. I should have locked it down first. That's on me.", "isLie": false }
+        ]
+      },
+      "backgroundCheck": {
+        "flagged": false,
+        "text": "Eight years of service, clean record, certification current."
+      },
+      "initialLie": {
+        "id": "my_lie_cart",
+        "text": "I personally poured and served every drink in that cabin myself, the cart was never out of my sight.",
+        "contradictedByEvidenceId": "crew_handoff_log"
+      }
+    },
+    {
+      "id": "diane_cho",
+      "name": "Diane Cho",
+      "role": "Retired Professor",
+      "persona": "Sharp and observant, a little imperious, clearly enjoys being the one who notices things -- but guarded about her own reasons for traveling.",
+      "facts": {
+        "timeline": [
+          { "id": "dc_t1", "text": "I was seated across the aisle from Mr. Pryce, in 2D. Quiet flight, right up until the commotion.", "isLie": false }
+        ],
+        "motive": [
+          { "id": "dc_m1", "text": "I'd never laid eyes on the man before this flight. Whatever happened to him is none of my doing.", "isLie": false }
+        ],
+        "relationships": [
+          { "id": "dc_r1", "text": "We exchanged pleasantries when he sat down. Nothing more than that.", "isLie": false }
+        ],
+        "alibi": [
+          { "id": "dc_a1", "text": "I dozed on and off for most of the flight. It was a long one.", "isLie": false }
+        ],
+        "evidenceReactions": [
+          { "id": "dc_e_call_button", "evidenceId": "call_button_log", "text": "...Alright, I woke up once to ask for a blanket. I was awake for a few minutes around then. I didn't see anything unusual, or I'd have said so already.", "isLie": false }
+        ]
+      },
+      "backgroundCheck": {
+        "flagged": true,
+        "text": "No criminal history. One unrelated note: barred from this airline's lounge network three years ago after a dispute over a seating upgrade."
+      },
+      "initialLie": {
+        "id": "dc_lie_asleep",
+        "text": "I was asleep for the entire flight, I didn't see or hear a thing.",
+        "contradictedByEvidenceId": "call_button_log"
+      }
+    },
+    {
+      "id": "felix_adeyemi",
+      "name": "Felix Adeyemi",
+      "role": "Startup Founder",
+      "persona": "Energetic and a little combative, quick to justify himself, clearly still bitter about a public dispute he'd rather not relitigate.",
+      "facts": {
+        "timeline": [
+          { "id": "fa_t1", "text": "I was seated a few rows back in 4A, nowhere near him for most of the flight.", "isLie": false }
+        ],
+        "motive": [
+          { "id": "fa_m1", "text": "Fine, yes, Elliot and I have history. He copied a feature from my product and out-marketed me for it. I've said plenty about that publicly, but I didn't put anything in his drink.", "isLie": false }
+        ],
+        "relationships": [
+          { "id": "fa_r1", "text": "We've clashed online for over a year. I genuinely didn't expect to be on the same flight as him.", "isLie": false }
+        ],
+        "alibi": [
+          { "id": "fa_a1", "text": "I stayed in my seat except to use the bathroom once, well before he collapsed.", "isLie": false }
+        ],
+        "evidenceReactions": [
+          { "id": "fa_e_gate_note", "evidenceId": "gate_agent_note", "text": "...We had words at the gate, yes. He made a comment, I made one back. It was ugly for about thirty seconds, and then we both got on the plane and sat as far apart as business class allows.", "isLie": false }
+        ]
+      },
+      "backgroundCheck": {
+        "flagged": true,
+        "text": "No criminal record. Public dispute with Pryce's company is well documented, including a cease-and-desist exchange last year."
+      },
+      "initialLie": {
+        "id": "fa_lie_noContact",
+        "text": "I hadn't spoken to Elliot at all today, we didn't even acknowledge each other.",
+        "contradictedByEvidenceId": "gate_agent_note"
+      }
+    },
+    {
+      "id": "renee_castillo",
+      "name": "Renee Castillo",
+      "role": "Marketing Director",
+      "persona": "Composed and pleasant, gives short, slightly rehearsed-sounding answers. Becomes noticeably more careful and clipped whenever the conversation drifts toward Elliot Pryce specifically.",
+      "facts": {
+        "timeline": [
+          { "id": "rc_t1", "text": "I was seated in 2A, by the window. I kept to myself with a book for most of the flight.", "isLie": false }
+        ],
+        "motive": [
+          { "id": "rc_m1", "text": "I have a career and a family that have nothing to do with whatever industry drama Mr. Pryce is tangled up in. I'm honestly not sure why you'd look at me.", "isLie": false }
+        ],
+        "relationships": [
+          { "id": "rc_r1", "text": "I didn't know him. I recognized his name from the news, same as anyone would.", "isLie": false }
+        ],
+        "alibi": [
+          { "id": "rc_a1", "text": "I didn't leave my seat except once, early on, before drink service even started.", "isLie": false }
+        ],
+        "evidenceReactions": [
+          { "id": "rc_e_loyalty", "evidenceId": "loyalty_program_log", "text": "...That account is old. I used my maiden name for years before I got married. Elliot and I crossed paths a long time ago, in a different life. I didn't think it was relevant to mention.", "isLie": false }
+        ]
+      },
+      "backgroundCheck": {
+        "flagged": true,
+        "text": "Frequent-flyer account originally registered years ago under the name Renee Ashford, with a professional background in pharmaceutical chemistry. Several historical itineraries overlap with Elliot Pryce's during that period."
+      },
+      "initialLie": {
+        "id": "rc_lie_neverMet",
+        "text": "I'd never met Elliot Pryce before today, I only know him from the headlines like everyone else.",
+        "contradictedByEvidenceId": "loyalty_program_log"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "cabin_service_log",
+      "suspectId": "priya_sethi",
+      "label": "Galley service log",
+      "description": "The galley log shows Priya Sethi briefly entered the galley near the drink cart for under a minute, requesting coffee.",
+      "unlockCost": 2
+    },
+    {
+      "id": "crew_handoff_log",
+      "suspectId": "marcus_yeun",
+      "label": "Crew handoff log",
+      "description": "Marcus Yeun briefly left the cabin to assist another crew member, leaving the drink cart unattended in the aisle for roughly two minutes.",
+      "unlockCost": 2
+    },
+    {
+      "id": "call_button_log",
+      "suspectId": "diane_cho",
+      "label": "Call button log",
+      "description": "Diane Cho's call button was used once mid-flight, requesting a blanket, during the window she claimed to have been fully asleep.",
+      "unlockCost": 2
+    },
+    {
+      "id": "gate_agent_note",
+      "suspectId": "felix_adeyemi",
+      "label": "Gate agent's note",
+      "description": "A gate agent documented a brief but heated exchange between Felix Adeyemi and Elliot Pryce during boarding.",
+      "unlockCost": 2
+    },
+    {
+      "id": "loyalty_program_log",
+      "suspectId": "renee_castillo",
+      "label": "Frequent-flyer account history",
+      "description": "Renee Castillo's frequent-flyer account was originally registered years ago under the name Renee Ashford, with several historical itineraries overlapping Elliot Pryce's during that period.",
+      "unlockCost": 2
+    }
+  ],
+  "timeline": [
+    { "time": "9:50 AM", "type": "confirmed", "text": "Boarding begins; a gate agent notes a brief, tense exchange near the jet bridge." },
+    { "time": "10:15 AM", "type": "confirmed", "text": "Flight 914 departs on schedule." },
+    { "time": "10:40 AM", "type": "confirmed", "text": "Elliot Pryce is served his drink during the first cabin service pass." },
+    { "time": "10:45 AM", "type": "claimed", "suspectId": "priya_sethi", "text": "Priya Sethi says she never left her seat the entire flight." },
+    { "time": "10:50 AM", "type": "claimed", "suspectId": "marcus_yeun", "text": "Marcus Yeun says he personally served every drink and never left the cart unattended." },
+    { "time": "11:05 AM", "type": "claimed", "suspectId": "diane_cho", "text": "Diane Cho says she was asleep for most of the flight." },
+    { "time": "11:10 AM", "type": "claimed", "suspectId": "felix_adeyemi", "text": "Felix Adeyemi says he hadn't spoken to Elliot Pryce at all that day." },
+    { "time": "11:15 AM", "type": "claimed", "suspectId": "renee_castillo", "text": "Renee Castillo says she'd never met Elliot Pryce before today." },
+    { "time": "11:20 AM", "type": "confirmed", "text": "Elliot Pryce complains of dizziness and collapses in his seat." },
+    { "time": "11:25 AM", "type": "confirmed", "text": "The crew requests medical volunteers and the captain begins preparations to divert." },
+    { "time": "11:40 AM", "type": "confirmed", "text": "Flight 914 diverts and lands; paramedics take Elliot Pryce to a hospital, stable but seriously ill." }
+  ],
+  "solution": {
+    "culpritId": "renee_castillo",
+    "narrative": "Renee Castillo did know Elliot Pryce -- intimately, once. Years ago, as Renee Ashford, she co-founded Elliot's first company with him, both professionally and personally engaged to be married. When the company found real traction, Elliot maneuvered her out of the business in a boardroom vote she never saw coming, rewriting the founding story to erase her contribution entirely -- and the engagement collapsed in the same season, for the same reasons. Renee rebuilt quietly under her married name, retrained as a pharmaceutical chemist, and never stopped tracking his career from a distance.\n\nBooking herself onto his flight was not a coincidence. Seated one row behind him in business class, she watched the cabin service pass and waited for a moment the aisle was clear -- Marcus's brief absence from the cart gave her exactly the gap she needed. Using a compound from her professional background, easy for her to obtain and easy to dose without a trace of flavor, she altered his drink during that short window and returned to her seat with a book, precisely as she'd described to everyone who asked.\n\nIt wasn't rage or a public scene. It was years of quiet planning, a stolen professional skill turned into a weapon, and a name change that meant nobody on that plane thought to ask the one question that mattered: had she ever met him before?"
+  }
+}
