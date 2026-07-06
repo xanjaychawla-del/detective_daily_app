@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../case_repository/case_repository_providers.dart';
 import '../case_repository/case_repository_service.dart';
+import '../core/analytics.dart';
 import '../core/theme.dart';
 import '../game_engine/game_state.dart';
 import 'home_shell.dart';
@@ -53,6 +54,10 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
           .setPlayStatus(entry.theCase.id, PlayStatus.inProgress);
       ref.invalidate(caseListProvider);
     }
+    ref.read(analyticsProvider).logEvent(
+      name: 'case_opened',
+      parameters: {'case_id': entry.theCase.id, 'previous_status': entry.status.name},
+    );
     ref.read(caseProvider.notifier).state = entry.theCase;
     ref.read(homeTabIndexProvider.notifier).state = 0;
     if (!mounted) return;
@@ -68,6 +73,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
       final newCase = await ref
           .read(caseRepositoryServiceProvider)
           .generateNewCase();
+      ref.read(analyticsProvider).logEvent(name: 'case_generated', parameters: {'case_id': newCase.id});
       ref.invalidate(caseListProvider);
       final entries = await ref.read(caseListProvider.future);
       final entry = entries.firstWhere((e) => e.theCase.id == newCase.id);

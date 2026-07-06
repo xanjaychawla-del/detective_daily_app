@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../case_repository/case_repository_providers.dart';
 import '../case_repository/case_repository_service.dart';
+import '../core/analytics.dart';
 import '../core/theme.dart';
 import '../game_engine/game_state.dart';
 
@@ -19,6 +20,17 @@ class CaseOutcomeScreen extends ConsumerStatefulWidget {
 class _CaseOutcomeScreenState extends ConsumerState<CaseOutcomeScreen> {
   int? _selectedRating;
   bool _ratingSubmitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final theCase = ref.read(caseProvider)!;
+    final gameState = ref.read(gameStateProvider);
+    ref.read(analyticsProvider).logEvent(
+      name: gameState.outcome == GameOutcome.solved ? 'case_solved' : 'case_gave_up',
+      parameters: {'case_id': theCase.id, 'accusation_attempts': gameState.accusationAttempts},
+    );
+  }
 
   Future<void> _rate(String caseId, int rating) async {
     setState(() => _selectedRating = rating);

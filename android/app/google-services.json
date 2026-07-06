@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "746779084671",
+    "project_id": "detective-daily-app",
+    "storage_bucket": "detective-daily-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:746779084671:android:7267f3be0c805fc0b97c4a",
+        "android_client_info": {
+          "package_name": "com.detectivedaily.detective_daily_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6q5CAyv8uqXlnCdwfhGyA5uKXQtBMz-g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
