@@ -22,13 +22,10 @@ Future<void> main() async {
   };
 
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
-  // Every player is signed in as a guest so their case progress is tracked
-  // against a real Supabase identity (auth.uid()) rather than a locally
-  // generated id that resets on reinstall. Registration/upgrade from guest
-  // is a later phase -- this just establishes the identity now.
-  if (Supabase.instance.client.auth.currentSession == null) {
-    await Supabase.instance.client.auth.signInAnonymously();
-  }
+  // Anonymous sign-in is a network call and belongs in LoadingScreen (with
+  // a timeout and a visible retry state), not here -- awaiting it in main()
+  // meant a single slow/unreachable network at startup left the screen
+  // completely blank forever, since runApp() never got a chance to fire.
   runApp(const ProviderScope(child: DetectiveDailyApp()));
 }
 
