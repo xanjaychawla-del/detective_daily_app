@@ -32,18 +32,35 @@ Future<void> main() async {
     debugPrint('Firebase failed to initialize, continuing without it: $err\n$stack');
   }
 
-  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   // Anonymous sign-in is a network call and belongs in LoadingScreen (with
   // a timeout and a visible retry state), not here -- awaiting it in main()
   // meant a single slow/unreachable network at startup left the screen
   // completely blank forever, since runApp() never got a chance to fire.
-  runApp(ProviderScope(child: DetectiveDailyApp(firebaseAvailable: firebaseAvailable)));
+  //
+  // Supabase.initialize() itself is a fast, local-only call *unless*
+  // supabaseUrl/supabaseAnonKey are missing (e.g. a build that forgot to
+  // pass --dart-define), in which case it throws immediately -- this must
+  // never be a silent, undebuggable blank screen, so it's surfaced as a
+  // real error screen instead of letting the exception escape main().
+  String? bootstrapError;
+  try {
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  } catch (err) {
+    bootstrapError = 'Failed to initialize backend: $err';
+  }
+
+  runApp(
+    ProviderScope(
+      child: DetectiveDailyApp(firebaseAvailable: firebaseAvailable, bootstrapError: bootstrapError),
+    ),
+  );
 }
 
 class DetectiveDailyApp extends StatelessWidget {
   final bool firebaseAvailable;
+  final String? bootstrapError;
 
-  const DetectiveDailyApp({super.key, required this.firebaseAvailable});
+  const DetectiveDailyApp({super.key, required this.firebaseAvailable, this.bootstrapError});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +71,21 @@ class DetectiveDailyApp extends StatelessWidget {
       navigatorObservers: [
         if (firebaseAvailable) FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
       ],
-      home: const LoadingScreen(),
+      home: bootstrapError == null
+          ? const LoadingScreen()
+          : Scaffold(
+              backgroundColor: Colors.black,
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    bootstrapError!,
+                    style: const TextStyle(color: Colors.white),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }

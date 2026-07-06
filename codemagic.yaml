@@ -22,9 +22,15 @@ workflows:
       - name: Run tests
         script: flutter test
       - name: Build iOS (unsigned)
-        script: flutter build ios --release --no-codesign
+        script: |
+          flutter build ios --release --no-codesign \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
       - name: Build Android APK
-        script: flutter build apk --release
+        script: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
     artifacts:
       - build/ios/iphoneos/*.app
       - build/app/outputs/**/*.apk
