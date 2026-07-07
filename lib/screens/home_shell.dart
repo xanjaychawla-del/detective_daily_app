@@ -28,6 +28,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
   bool _showTutorial = false;
   final _backButtonKey = GlobalKey();
   final _difficultyButtonKey = GlobalKey();
+  final _titleRowKey = GlobalKey();
   final _navBarKey = GlobalKey();
 
   @override
@@ -104,6 +105,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
               CaseBriefingHeader(
                 backButtonKey: _backButtonKey,
                 difficultyButtonKey: _difficultyButtonKey,
+                titleRowKey: _titleRowKey,
               ),
               Expanded(
                 child: TabBarView(
@@ -131,6 +133,11 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
                   targetKey: _backButtonKey,
                   title: 'Back to Case Files',
                   description: 'Tap here anytime to return to your case list -- your progress is saved.',
+                ),
+                CoachmarkStep(
+                  targetKey: _titleRowKey,
+                  title: 'Case Briefing',
+                  description: 'Tap the case title anytime to expand or collapse the briefing -- it\'s always here if you need a reminder.',
                 ),
                 CoachmarkStep(
                   targetKey: _difficultyButtonKey,

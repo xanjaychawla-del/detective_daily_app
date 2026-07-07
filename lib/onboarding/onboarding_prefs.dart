@@ -2,6 +2,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const kCaseFilesTutorialKey = 'seen_case_files_tutorial_v1';
 const kHomeShellTutorialKey = 'seen_home_shell_tutorial_v1';
+const kInterrogationTutorialKey = 'seen_interrogation_tutorial_v1';
+const kEvidenceBoardTutorialKey = 'seen_evidence_board_tutorial_v1';
 
 class OnboardingPrefs {
   static Future<bool> hasSeen(String key) async {

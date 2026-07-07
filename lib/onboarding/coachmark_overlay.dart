@@ -28,11 +28,41 @@ class CoachmarkOverlay extends StatefulWidget {
 
 class _CoachmarkOverlayState extends State<CoachmarkOverlay> {
   int _index = 0;
+  final _overlayKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureVisible());
+  }
+
+  // Some steps target content inside a scrollable screen (e.g. the
+  // Evidence Board's "Suspects" section can sit below the fold) -- bring
+  // it into view before the spotlight tries to circle it. A no-op if the
+  // target's already on screen or isn't inside a Scrollable.
+  Future<void> _ensureVisible() async {
+    final ctx = widget.steps[_index].targetKey.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 200), alignment: 0.5);
+    if (mounted) setState(() {});
+  }
+
+  // This overlay is a Positioned.fill inside whatever Stack the host
+  // screen wraps it in. That Stack doesn't always start at the true
+  // screen origin (e.g. Evidence Board's Stack sits inside a TabBarView,
+  // below the case briefing header) -- so the target's *global* position
+  // has to be converted into coordinates *local to this overlay* before
+  // the CustomPaint canvas (which only knows its own local space) can
+  // draw the cutout in the right place.
+  RenderBox? get _overlayBox => _overlayKey.currentContext?.findRenderObject() as RenderBox?;
 
   Rect? _targetRect() {
     final renderObject = widget.steps[_index].targetKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox || !renderObject.hasSize) return null;
-    return renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    final globalRect = renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    final overlayBox = _overlayBox;
+    if (overlayBox == null || !overlayBox.hasSize) return globalRect;
+    return (overlayBox.globalToLocal(globalRect.topLeft) & globalRect.size);
   }
 
   void _next() {
@@ -40,6 +70,7 @@ class _CoachmarkOverlayState extends State<CoachmarkOverlay> {
       widget.onFinished();
     } else {
       setState(() => _index++);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _ensureVisible());
     }
   }
 
@@ -47,12 +78,13 @@ class _CoachmarkOverlayState extends State<CoachmarkOverlay> {
   Widget build(BuildContext context) {
     final rect = _targetRect();
     final step = widget.steps[_index];
-    final screenSize = MediaQuery.sizeOf(context);
+    final screenSize = _overlayBox?.hasSize == true ? _overlayBox!.size : MediaQuery.sizeOf(context);
     final isLast = _index == widget.steps.length - 1;
     final showBubbleAbove = rect != null && rect.center.dy > screenSize.height / 2;
 
     return Positioned.fill(
       child: GestureDetector(
+        key: _overlayKey,
         behavior: HitTestBehavior.opaque,
         onTap: _next,
         child: Stack(

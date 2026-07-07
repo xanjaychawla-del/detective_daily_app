@@ -131,7 +131,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
     );
     ref.read(caseProvider.notifier).state = entry.theCase;
     ref.read(homeTabIndexProvider.notifier).state = 0;
-    ref.read(briefExpandedProvider.notifier).state = true;
+    ref.read(briefExpandedProvider.notifier).state = false;
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => HomeShell(isFirstOpen: isFirstOpen)),

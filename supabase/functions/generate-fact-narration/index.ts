@@ -1,15 +1,19 @@
-// Phrases ONE suspect fact (Gemini) and narrates it (Polly), then caches
-// both permanently per (case, fact) -- see migration 011 for why this
-// replaces the old narrate function's live, history-aware phrasing:
-// every player now hears the identical line for a given fact, and it's
-// synthesized/phrased exactly once per fact, not once per play.
+// Phrases ONE suspect fact via Gemini and caches it permanently per
+// (case, fact) -- every player gets the identical line, phrased exactly
+// once, not once per play. See migration 011 for why this replaces the
+// old narrate function's live, history-aware phrasing.
 //
-// Secrets: GEMINI_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+// Audio synthesis (Polly) is parked for now -- the client speaks the
+// returned text via on-device TTS instead, deliberately mechanical
+// sounding until there's enough traffic to justify the cloud-voice cost.
+// fact_narration.audio_url stays nullable and unused here; wiring Polly
+// back in later just means filling it in alongside phrased_text below.
+//
+// Secrets: GEMINI_API_KEY
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 // Deploy with --no-verify-jwt, matching the rest of this project's functions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { PollyClient, SynthesizeSpeechCommand } from "https://esm.sh/@aws-sdk/client-polly@3";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -17,17 +21,6 @@ const CORS_HEADERS = {
 };
 
 const MODEL = "gemini-2.5-flash";
-const AWS_REGION = "us-east-1";
-
-// Mixed adult Neural voices, excluding "Matthew" (reserved for the
-// Inspector persona) so suspects never sound like the calling inspector.
-const VOICE_POOL = ["Joanna", "Kendra", "Kimberly", "Salli", "Joey", "Justin", "Amy", "Brian"];
-
-function pickVoice(suspectId: string): string {
-  let sum = 0;
-  for (let i = 0; i < suspectId.length; i++) sum += suspectId.charCodeAt(i);
-  return VOICE_POOL[sum % VOICE_POOL.length];
-}
 
 function jsonResponse(body: Record<string, unknown>, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -82,11 +75,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
-  const awsAccessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
-  const awsSecretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!geminiApiKey || !awsAccessKeyId || !awsSecretAccessKey || !supabaseUrl || !serviceRoleKey) {
+  if (!geminiApiKey || !supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ error: "server_misconfigured" }, 500);
   }
 
@@ -110,13 +101,13 @@ Deno.serve(async (req: Request) => {
 
   const { data: existing } = await supabase
     .from("fact_narration")
-    .select("phrased_text, audio_url")
+    .select("phrased_text")
     .eq("case_id", caseId)
     .eq("fact_id", factId)
     .maybeSingle();
 
   if (existing) {
-    return jsonResponse({ ok: true, phrasedText: existing.phrased_text, audioUrl: existing.audio_url }, 200);
+    return jsonResponse({ ok: true, phrasedText: existing.phrased_text }, 200);
   }
 
   let phrasedText: string;
@@ -132,44 +123,13 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "phrasing_failed" }, 502);
   }
 
-  let audioBytes: Uint8Array;
-  try {
-    const polly = new PollyClient({
-      region: AWS_REGION,
-      credentials: { accessKeyId: awsAccessKeyId, secretAccessKey: awsSecretAccessKey },
-    });
-    const response = await polly.send(new SynthesizeSpeechCommand({
-      Text: phrasedText,
-      OutputFormat: "mp3",
-      VoiceId: pickVoice(suspectId),
-      Engine: "neural",
-    }));
-    if (!response.AudioStream) throw new Error("empty_audio_stream");
-    audioBytes = await response.AudioStream.transformToByteArray();
-  } catch (err) {
-    console.error("Polly call failed:", (err as Error)?.message ?? err);
-    return jsonResponse({ error: "tts_failed" }, 502);
-  }
-
-  const path = `${caseId}/${factId}.mp3`;
-  const { error: uploadError } = await supabase.storage
-    .from("case-audio")
-    .upload(path, audioBytes, { contentType: "audio/mpeg", upsert: true });
-  if (uploadError) {
-    console.error("Storage upload failed:", uploadError.message);
-    return jsonResponse({ error: "upload_failed" }, 500);
-  }
-
-  const { data: publicUrlData } = supabase.storage.from("case-audio").getPublicUrl(path);
-  const audioUrl = publicUrlData.publicUrl;
-
   const { error: insertError } = await supabase
     .from("fact_narration")
-    .insert({ case_id: caseId, suspect_id: suspectId, fact_id: factId, phrased_text: phrasedText, audio_url: audioUrl });
+    .insert({ case_id: caseId, suspect_id: suspectId, fact_id: factId, phrased_text: phrasedText });
   if (insertError) {
     console.error("Failed to cache fact narration:", insertError.message);
     // Not fatal -- still return what was generated for this call.
   }
 
-  return jsonResponse({ ok: true, phrasedText, audioUrl }, 200);
+  return jsonResponse({ ok: true, phrasedText }, 200);
 });

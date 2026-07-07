@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
-import '../case_repository/case_repository_providers.dart';
 import '../core/theme.dart';
 
 const _kInspectorNames = [
@@ -21,8 +19,8 @@ const _kInspectorNames = [
 
 // A plain char-code sum, not Dart's String.hashCode -- this must match
 // supabase/functions/generate-briefing-audio/index.ts's pickInspectorName
-// exactly so the name shown on screen always matches the name spoken in
-// the cached audio for the same case id.
+// exactly, so if/when the cloud narration is switched back on, the name
+// spoken there still matches the name shown here for the same case id.
 String _pickInspectorName(String caseId) {
   var sum = 0;
   for (final unit in caseId.codeUnits) {
@@ -35,12 +33,13 @@ enum _CallPhase { ringing, briefing, dismissing }
 
 /// Replaces the plain tap-to-dismiss case intro with a simulated incoming
 /// call from "Inspector `<name>`". Answering plays the case briefing aloud
-/// via a cached ElevenLabs narration (generated once per case, reused by
-/// every player -- see generate-briefing-audio). Ringtone playback uses
-/// the platform's real system ringtone on Android; iOS has no public API
-/// for a user's actual ringtone, so it falls back to a generic bundled
-/// ring sound there -- a platform limitation, not a bug.
-class IncomingCallOverlay extends ConsumerStatefulWidget {
+/// via on-device text-to-speech -- deliberately mechanical-sounding for
+/// now (see generate-briefing-audio for the cached-cloud-narration version,
+/// parked until there's enough traffic to justify switching it back on).
+/// Ringtone playback uses the platform's real system ringtone on Android;
+/// iOS has no public API for a user's actual ringtone, so it falls back to
+/// a generic bundled ring sound there -- a platform limitation, not a bug.
+class IncomingCallOverlay extends StatefulWidget {
   final String caseId;
   final String title;
   final String briefing;
@@ -55,14 +54,13 @@ class IncomingCallOverlay extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<IncomingCallOverlay> createState() => _IncomingCallOverlayState();
+  State<IncomingCallOverlay> createState() => _IncomingCallOverlayState();
 }
 
-class _IncomingCallOverlayState extends ConsumerState<IncomingCallOverlay> with SingleTickerProviderStateMixin {
+class _IncomingCallOverlayState extends State<IncomingCallOverlay> with SingleTickerProviderStateMixin {
   late final String _inspectorName = _pickInspectorName(widget.caseId);
-  final AudioPlayer _player = AudioPlayer();
+  final FlutterTts _tts = FlutterTts();
   _CallPhase _phase = _CallPhase.ringing;
-  bool _loadingAudio = false;
   late final AnimationController _dismissController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 380),
@@ -72,31 +70,26 @@ class _IncomingCallOverlayState extends ConsumerState<IncomingCallOverlay> with 
   void initState() {
     super.initState();
     FlutterRingtonePlayer().playRingtone();
-    _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) _finish();
-    });
+    _tts.setCompletionHandler(_finish);
+    _tts.setErrorHandler((_) => _finish());
   }
 
   @override
   void dispose() {
     FlutterRingtonePlayer().stop();
-    _player.dispose();
+    _tts.stop();
     _dismissController.dispose();
     super.dispose();
   }
 
   Future<void> _answer() async {
     FlutterRingtonePlayer().stop();
-    setState(() {
-      _phase = _CallPhase.briefing;
-      _loadingAudio = true;
-    });
+    setState(() => _phase = _CallPhase.briefing);
+    final script = 'This is Inspector $_inspectorName speaking. Hello detective, I called to brief you on the case. '
+        '${widget.briefing} The details are sent to your phone under unsolved cases.';
     try {
-      final audioUrl = await ref.read(caseRepositoryServiceProvider).fetchBriefingAudioUrl(widget.caseId);
-      if (!mounted) return;
-      setState(() => _loadingAudio = false);
-      await _player.setUrl(audioUrl);
-      await _player.play();
+      await _tts.setSpeechRate(0.46);
+      await _tts.speak(script);
     } catch (_) {
       _finish();
     }
@@ -114,7 +107,7 @@ class _IncomingCallOverlayState extends ConsumerState<IncomingCallOverlay> with 
 
   void _finish() {
     if (_phase == _CallPhase.dismissing || !mounted) return;
-    _player.stop();
+    _tts.stop();
     setState(() => _phase = _CallPhase.dismissing);
     _dismissController.forward().whenComplete(widget.onFinished);
   }
@@ -162,7 +155,7 @@ class _IncomingCallOverlayState extends ConsumerState<IncomingCallOverlay> with 
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  ringing ? 'Incoming call...' : (_loadingAudio ? 'Connecting...' : 'On call'),
+                  ringing ? 'Incoming call...' : 'On call',
                   style: const TextStyle(color: Colors.white54, fontSize: 15),
                 ),
                 const Spacer(),

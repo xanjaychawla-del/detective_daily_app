@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 import '../case_repository/case_repository_providers.dart';
 import '../conversation_engine/conversation_engine.dart';
 import '../game_engine/game_state.dart';
+import '../onboarding/coachmark_overlay.dart';
+import '../onboarding/onboarding_prefs.dart';
 import '../truth_engine/models.dart';
 
 class _TranscriptLine {
@@ -26,8 +28,11 @@ class InterrogationScreen extends ConsumerStatefulWidget {
 class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   final List<_TranscriptLine> _lines = [];
   final ScrollController _scroll = ScrollController();
-  final AudioPlayer _player = AudioPlayer();
+  final FlutterTts _tts = FlutterTts();
+  final _categoriesKey = GlobalKey();
+  final _presentEvidenceKey = GlobalKey();
   bool _loading = false;
+  bool _showTutorial = false;
 
   Suspect get _suspect => ref.read(caseProvider)!.suspectById(widget.suspectId);
 
@@ -35,13 +40,24 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _openInterview());
+    OnboardingPrefs.hasSeen(kInterrogationTutorialKey).then((seen) {
+      if (seen || !mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showTutorial = true);
+      });
+    });
   }
 
   @override
   void dispose() {
     _scroll.dispose();
-    _player.dispose();
+    _tts.stop();
     super.dispose();
+  }
+
+  void _dismissTutorial() {
+    setState(() => _showTutorial = false);
+    OnboardingPrefs.markSeen(kInterrogationTutorialKey);
   }
 
   void _scrollToBottom() {
@@ -64,20 +80,17 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   Future<void> _sayFact(Fact fact, {required String category}) async {
     setState(() => _loading = true);
     String text = fact.text;
-    String? audioUrl;
     try {
-      final narration = await ref.read(caseRepositoryServiceProvider).fetchFactNarration(
+      text = await ref.read(caseRepositoryServiceProvider).fetchFactNarration(
             caseId: ref.read(caseProvider)!.id,
             suspect: _suspect,
             factId: fact.id,
             factText: fact.text,
             category: category,
           );
-      text = narration.phrasedText;
-      audioUrl = narration.audioUrl;
     } catch (_) {
-      // Narration is a nice-to-have, never a blocker -- fall back to the
-      // raw fact text if phrasing/narration fails for any reason.
+      // Phrasing is a nice-to-have, never a blocker -- fall back to the
+      // raw fact text if it fails for any reason.
     }
     if (!mounted) return;
     setState(() {
@@ -85,13 +98,11 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
       _loading = false;
     });
     _scrollToBottom();
-    if (audioUrl != null) {
-      try {
-        await _player.setUrl(audioUrl);
-        unawaited(_player.play());
-      } catch (_) {
-        // Silent fallback -- the text is already shown either way.
-      }
+    try {
+      await _tts.setSpeechRate(0.46);
+      unawaited(_tts.speak(text));
+    } catch (_) {
+      // Silent fallback -- the text is already shown either way.
     }
   }
 
@@ -160,7 +171,7 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
     final engine = ref.read(conversationEngineProvider);
     ref.watch(gameStateProvider); // rebuild when focus/progress/evidence changes
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
         title: Column(
           mainAxisSize: MainAxisSize.min,
@@ -222,14 +233,22 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final category in FactCategory.values)
-                    ActionChip(
-                      label: Text(_categoryLabel(category)),
-                      onPressed: !_loading && engine.hasMoreInCategory(widget.suspectId, category)
-                          ? () => _ask(category)
-                          : null,
-                    ),
+                  Wrap(
+                    key: _categoriesKey,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final category in FactCategory.values)
+                        ActionChip(
+                          label: Text(_categoryLabel(category)),
+                          onPressed: !_loading && engine.hasMoreInCategory(widget.suspectId, category)
+                              ? () => _ask(category)
+                              : null,
+                        ),
+                    ],
+                  ),
                   ActionChip(
+                    key: _presentEvidenceKey,
                     avatar: const Icon(Icons.fact_check, size: 18),
                     label: const Text('Present Evidence'),
                     onPressed: _loading ? null : _openEvidenceSheet,
@@ -240,6 +259,28 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
           ),
         ],
       ),
+    );
+
+    return Stack(
+      children: [
+        scaffold,
+        if (_showTutorial)
+          CoachmarkOverlay(
+            steps: [
+              CoachmarkStep(
+                targetKey: _categoriesKey,
+                title: 'Ask Questions',
+                description: 'Tap a category to ask about it -- Timeline, Motive, Relationships, or Alibi.',
+              ),
+              CoachmarkStep(
+                targetKey: _presentEvidenceKey,
+                title: 'Present Evidence',
+                description: "Once you've unlocked evidence on the Evidence Board, present it here to catch a contradiction.",
+              ),
+            ],
+            onFinished: _dismissTutorial,
+          ),
+      ],
     );
   }
 }

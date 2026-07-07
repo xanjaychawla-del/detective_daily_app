@@ -18,8 +18,9 @@ String _formatToday() {
 class CaseBriefingHeader extends ConsumerWidget {
   final GlobalKey? backButtonKey;
   final GlobalKey? difficultyButtonKey;
+  final GlobalKey? titleRowKey;
 
-  const CaseBriefingHeader({super.key, this.backButtonKey, this.difficultyButtonKey});
+  const CaseBriefingHeader({super.key, this.backButtonKey, this.difficultyButtonKey, this.titleRowKey});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -67,6 +68,7 @@ class CaseBriefingHeader extends ConsumerWidget {
                 ],
               ),
               InkWell(
+                key: titleRowKey,
                 onTap: () => ref.read(briefExpandedProvider.notifier).state = !briefExpanded,
                 child: Row(
                   children: [

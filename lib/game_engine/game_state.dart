@@ -26,10 +26,11 @@ final hardModeProvider = StateProvider<bool>((ref) => false);
 final homeTabIndexProvider = StateProvider<int>((ref) => 0);
 
 /// Whether the full case briefing text is showing in the header (vs.
-/// collapsed to just the title). Starts expanded, since it lands there
-/// straight out of the case-intro screen -- the player can collapse it
-/// once they've read it, and re-expand it anytime from any tab.
-final briefExpandedProvider = StateProvider<bool>((ref) => true);
+/// collapsed to just the title). Starts collapsed on the Suspects/
+/// Evidence/Accuse tabs -- the player's already heard the briefing via
+/// the incoming call, so the header stays out of the way, but they can
+/// expand it from any tab anytime.
+final briefExpandedProvider = StateProvider<bool>((ref) => false);
 
 enum GameOutcome { inProgress, solved, gaveUp }
 

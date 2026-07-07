@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
-import '../case_repository/case_repository_providers.dart';
 import '../game_engine/game_state.dart';
+import '../onboarding/coachmark_overlay.dart';
+import '../onboarding/onboarding_prefs.dart';
 import '../truth_engine/models.dart';
 
 /// Evidence and background checks are scoped per suspect (not one global
@@ -16,45 +17,67 @@ class EvidenceBoardScreen extends ConsumerStatefulWidget {
   ConsumerState<EvidenceBoardScreen> createState() => _EvidenceBoardScreenState();
 }
 
-enum _TimelineAudioState { idle, loading, playing }
-
 class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
-  final AudioPlayer _player = AudioPlayer();
-  _TimelineAudioState _audioState = _TimelineAudioState.idle;
+  final FlutterTts _tts = FlutterTts();
+  final _timelineKey = GlobalKey();
+  final _suspectsKey = GlobalKey();
+  bool _playingTimeline = false;
+  bool _showTutorial = false;
 
   @override
   void initState() {
     super.initState();
-    _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed && mounted) {
-        setState(() => _audioState = _TimelineAudioState.idle);
-      }
+    _tts.setCompletionHandler(() {
+      if (mounted) setState(() => _playingTimeline = false);
+    });
+    _tts.setErrorHandler((_) {
+      if (mounted) setState(() => _playingTimeline = false);
+    });
+    OnboardingPrefs.hasSeen(kEvidenceBoardTutorialKey).then((seen) {
+      if (seen || !mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showTutorial = true);
+      });
     });
   }
 
   @override
   void dispose() {
-    _player.dispose();
+    _tts.stop();
     super.dispose();
   }
 
-  Future<void> _toggleTimelineNarration(String caseId) async {
-    if (_audioState == _TimelineAudioState.playing) {
-      await _player.pause();
-      setState(() => _audioState = _TimelineAudioState.idle);
+  void _dismissTutorial() {
+    setState(() => _showTutorial = false);
+    OnboardingPrefs.markSeen(kEvidenceBoardTutorialKey);
+  }
+
+  // On-device TTS reading the timeline exactly as written -- no new AI
+  // writing involved. See generate-timeline-audio for the cached-cloud
+  // version, parked until there's enough traffic to justify it.
+  String _buildTimelineScript(Case theCase) {
+    final nameById = {for (final s in theCase.suspects) s.id: s.name};
+    final lines = theCase.timeline.map((entry) {
+      if (entry.type == TimelineEntryType.confirmed) return 'At ${entry.time}, ${entry.text}';
+      final name = entry.suspectId != null ? nameById[entry.suspectId] : null;
+      return 'At ${entry.time}, according to ${name ?? 'one witness'}, ${entry.text}';
+    });
+    return "Here's what we know about the timeline of events. ${lines.join(' ')} That's everything on record so far.";
+  }
+
+  Future<void> _toggleTimelineNarration(Case theCase) async {
+    if (_playingTimeline) {
+      await _tts.stop();
+      setState(() => _playingTimeline = false);
       return;
     }
-    setState(() => _audioState = _TimelineAudioState.loading);
+    setState(() => _playingTimeline = true);
     try {
-      final audioUrl = await ref.read(caseRepositoryServiceProvider).fetchTimelineAudioUrl(caseId);
-      if (!mounted) return;
-      await _player.setUrl(audioUrl);
-      await _player.play();
-      if (!mounted) return;
-      setState(() => _audioState = _TimelineAudioState.playing);
+      await _tts.setSpeechRate(0.46);
+      await _tts.speak(_buildTimelineScript(theCase));
     } catch (err) {
       if (!mounted) return;
-      setState(() => _audioState = _TimelineAudioState.idle);
+      setState(() => _playingTimeline = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not play the timeline narration: $err')),
       );
@@ -68,20 +91,17 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
     final notifier = ref.read(gameStateProvider.notifier);
     final hardMode = ref.watch(hardModeProvider);
 
-    return ListView(
+    final list = ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Row(
+          key: _timelineKey,
           children: [
             Text('Case Timeline', style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
             IconButton(
-              onPressed: _audioState == _TimelineAudioState.loading
-                  ? null
-                  : () => _toggleTimelineNarration(theCase.id),
-              icon: _audioState == _TimelineAudioState.loading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(_audioState == _TimelineAudioState.playing ? Icons.pause_circle : Icons.play_circle),
+              onPressed: () => _toggleTimelineNarration(theCase),
+              icon: Icon(_playingTimeline ? Icons.pause_circle : Icons.play_circle),
               tooltip: 'Play timeline narration',
             ),
           ],
@@ -89,7 +109,7 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
         const SizedBox(height: 8),
         for (final entry in theCase.timeline) _TimelineTile(entry: entry),
         const SizedBox(height: 24),
-        Text('Suspects', style: Theme.of(context).textTheme.titleMedium),
+        Text('Suspects', key: _suspectsKey, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         for (final suspect in theCase.suspects)
           Card(
@@ -120,6 +140,30 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
                 ),
               ],
             ),
+          ),
+      ],
+    );
+
+    return Stack(
+      children: [
+        list,
+        if (_showTutorial)
+          CoachmarkOverlay(
+            steps: [
+              CoachmarkStep(
+                targetKey: _timelineKey,
+                title: 'Case Timeline',
+                description: 'Confirmed events are solid facts; claimed events are what a suspect says happened -- '
+                    "which may not be true. Tap play to hear it narrated.",
+              ),
+              CoachmarkStep(
+                targetKey: _suspectsKey,
+                title: 'Evidence & Background Checks',
+                description: 'Each suspect has their own evidence to unlock and a background check you can run '
+                    'once you\'ve interviewed them.',
+              ),
+            ],
+            onFinished: _dismissTutorial,
           ),
       ],
     );
