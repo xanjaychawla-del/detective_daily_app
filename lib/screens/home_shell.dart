@@ -6,13 +6,17 @@ import '../onboarding/coachmark_overlay.dart';
 import '../onboarding/onboarding_prefs.dart';
 import 'accusation_screen.dart';
 import 'case_briefing_header.dart';
-import 'case_intro_overlay.dart';
 import 'case_outcome_screen.dart';
 import 'evidence_board_screen.dart';
+import 'incoming_call_overlay.dart';
 import 'suspect_roster_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
-  const HomeShell({super.key});
+  // The incoming call only plays the first time a case is opened
+  // (unopened -> in_progress). Reopening an already-started case skips
+  // straight to the Suspects tab.
+  final bool isFirstOpen;
+  const HomeShell({super.key, required this.isFirstOpen});
 
   @override
   ConsumerState<HomeShell> createState() => _HomeShellState();
@@ -20,7 +24,7 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  bool _showIntro = true;
+  late bool _showIntro = widget.isFirstOpen;
   bool _showTutorial = false;
   final _backButtonKey = GlobalKey();
   final _difficultyButtonKey = GlobalKey();
@@ -43,6 +47,10 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
         ref.read(homeTabIndexProvider.notifier).state = _tabController.index;
       }
     });
+    // If there's no call to answer this time, the tutorial still needs a
+    // chance to show (e.g. the player closed the app before ever seeing it
+    // and keeps reopening the same in-progress case).
+    if (!widget.isFirstOpen) _maybeShowTutorial();
   }
 
   @override
@@ -51,15 +59,19 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
     super.dispose();
   }
 
-  void _onIntroDismissed() {
-    if (!mounted) return;
-    setState(() => _showIntro = false);
+  void _maybeShowTutorial() {
     OnboardingPrefs.hasSeen(kHomeShellTutorialKey).then((seen) {
       if (seen || !mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _showTutorial = true);
       });
     });
+  }
+
+  void _onIntroDismissed() {
+    if (!mounted) return;
+    setState(() => _showIntro = false);
+    _maybeShowTutorial();
   }
 
   void _dismissTutorial() {
@@ -106,10 +118,11 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
             ],
           ),
           if (_showIntro)
-            CaseIntroOverlay(
+            IncomingCallOverlay(
+              caseId: theCase.id,
               title: theCase.title,
               briefing: theCase.briefing,
-              onDismissed: _onIntroDismissed,
+              onFinished: _onIntroDismissed,
             ),
           if (_showTutorial)
             CoachmarkOverlay(
