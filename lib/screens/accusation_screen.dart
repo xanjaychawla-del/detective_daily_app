@@ -38,12 +38,35 @@ class AccusationScreen extends ConsumerWidget {
               children: [
                 for (final s in available)
                   Card(
-                    child: ListTile(
-                      title: Text(s.name),
-                      subtitle: Text(s.role),
-                      trailing: FilledButton(
-                        onPressed: () => _confirmAccuse(context, ref, s, hardMode),
-                        child: const Text('Accuse'),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  s.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                Text(
+                                  s.role,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white60),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton(
+                            onPressed: () => _confirmAccuse(context, ref, s, hardMode),
+                            child: const Text('Accuse'),
+                          ),
+                        ],
                       ),
                     ),
                   ),

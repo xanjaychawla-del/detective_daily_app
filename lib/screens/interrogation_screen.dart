@@ -141,7 +141,20 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
     ref.watch(gameStateProvider); // rebuild when focus/progress/evidence changes
 
     return Scaffold(
-      appBar: AppBar(title: Text(_suspect.name)),
+      appBar: AppBar(
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_suspect.name, overflow: TextOverflow.ellipsis),
+            Text(
+              _suspect.role,
+              style: const TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.normal),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
       body: Column(
         children: [
           Expanded(

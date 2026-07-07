@@ -48,6 +48,8 @@ class CaseBriefingHeader extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'DETECTIVE DAILY · ${_formatToday()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,

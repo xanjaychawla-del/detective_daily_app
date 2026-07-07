@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../case_repository/case_repository_providers.dart';
 import '../case_repository/case_repository_service.dart';
 import '../core/analytics.dart';
+import '../core/status_pill.dart';
 import '../core/theme.dart';
 import '../game_engine/game_state.dart';
 import '../onboarding/coachmark_overlay.dart';
 import '../onboarding/onboarding_prefs.dart';
+import '../tier/tier_providers.dart';
+import '../tier/tier_service.dart';
 import 'home_shell.dart';
+import 'registration_screen.dart';
 
 /// The app's launch screen: every case (authored + AI-generated) with its
 /// play status, split across Unsolved/New/Archive tabs, plus the "Get New
@@ -68,12 +72,58 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
     if (!hasUnsolved) _tabController.index = 1;
   }
 
+  // Guests and Free/Lite tiers only gate *starting a new case* -- an
+  // already in-progress or given-up case (already counted against a past
+  // cap) always stays playable to completion. Returns true if the open was
+  // blocked (a prompt was shown instead).
+  Future<bool> _checkNewCaseGate() async {
+    final tierService = ref.read(tierGateServiceProvider);
+    if (tierService.isGuest) {
+      final solved = await ref.read(guestSolvedCountProvider.future);
+      if (solved >= kGuestSolvedCap) {
+        if (!mounted) return true;
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const RegistrationScreen(
+            reason: "You've solved your 3 free guest cases. Register to keep investigating.",
+          ),
+        ));
+        return true;
+      }
+      return false;
+    }
+
+    final tier = await ref.read(userTierProvider.future) ?? UserTier.free;
+    final cap = kTierLimits[tier]!.dailyNewCaseCap;
+    if (cap == null) return false;
+    final openedToday = await ref.read(newCasesOpenedTodayProvider.future);
+    if (openedToday >= cap) {
+      if (!mounted) return true;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("That's today's limit"),
+          content: Text(
+            tier == UserTier.free
+                ? "You've opened your free case for today. Upgrade to Lite for 3 new cases a day, or come back tomorrow."
+                : "You've opened today's new cases. Come back tomorrow for more.",
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _openCase(CaseListEntry entry) async {
-    if (entry.status == PlayStatus.unopened) {
+    final isFirstOpen = entry.status == PlayStatus.unopened;
+    if (isFirstOpen) {
+      if (await _checkNewCaseGate()) return;
       await ref
           .read(caseRepositoryServiceProvider)
           .setPlayStatus(entry.theCase.id, PlayStatus.inProgress);
       ref.invalidate(caseListProvider);
+      ref.invalidate(newCasesOpenedTodayProvider);
     }
     ref.read(analyticsProvider).logEvent(
       name: 'case_opened',
@@ -83,10 +133,11 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
     ref.read(homeTabIndexProvider.notifier).state = 0;
     ref.read(briefExpandedProvider.notifier).state = true;
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const HomeShell()));
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => HomeShell(isFirstOpen: isFirstOpen)),
+    );
     ref.invalidate(caseListProvider);
+    ref.invalidate(guestSolvedCountProvider);
   }
 
   Future<void> _getNewCase() async {
@@ -114,6 +165,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
   @override
   Widget build(BuildContext context) {
     final casesAsync = ref.watch(caseListProvider);
+    final isGuest = ref.watch(tierGateServiceProvider).isGuest;
 
     return Stack(
       children: [
@@ -126,11 +178,15 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
                 title: 'Unsolved · New · Archive',
                 description: 'Swipe or tap to switch between cases you\'re working on, new ones waiting, and ones you\'ve solved.',
               ),
-              CoachmarkStep(
-                targetKey: _getNewCaseKey,
-                title: 'Get New Case',
-                description: 'Have the AI author a brand-new case just for you, on demand.',
-              ),
+              // Guests never see the Get New Case button (it only appears
+              // for registered users once their New tab is empty), so
+              // there's nothing to spotlight for this step.
+              if (!isGuest)
+                CoachmarkStep(
+                  targetKey: _getNewCaseKey,
+                  title: 'Get New Case',
+                  description: 'Have the AI author a brand-new case just for you, on demand.',
+                ),
             ],
             onFinished: _dismissTutorial,
           ),
@@ -139,9 +195,37 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
   }
 
   Widget _buildScaffold(BuildContext context, AsyncValue<List<CaseListEntry>> casesAsync) {
+    final isGuest = ref.watch(tierGateServiceProvider).isGuest;
+    final tierAsync = ref.watch(userTierProvider);
+    final openedTodayAsync = ref.watch(newCasesOpenedTodayProvider);
+
+    var showGetNewCase = false;
+    if (!isGuest) {
+      final tier = tierAsync.valueOrNull ?? UserTier.free;
+      final limits = kTierLimits[tier]!;
+      if (limits.getNewCaseAlwaysVisible) {
+        showGetNewCase = true;
+      } else {
+        final entries = casesAsync.valueOrNull ?? const [];
+        final hasUnopened = entries.any((e) => e.status == PlayStatus.unopened);
+        final openedToday = openedTodayAsync.valueOrNull ?? 0;
+        final cap = limits.dailyNewCaseCap;
+        showGetNewCase = !hasUnopened && (cap == null || openedToday < cap);
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detective Daily - Case Files'),
+        actions: [
+          if (isGuest)
+            TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const RegistrationScreen()),
+              ),
+              child: const Text('Register'),
+            ),
+        ],
         bottom: TabBar(
           key: _tabsKey,
           controller: _tabController,
@@ -198,26 +282,27 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
                 },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                key: _getNewCaseKey,
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _generating ? null : _getNewCase,
-                  icon: _generating
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome),
-                  label: Text(
-                    _generating ? 'Generating case...' : 'Get New Case',
+            if (showGetNewCase)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  key: _getNewCaseKey,
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _generating ? null : _getNewCase,
+                    icon: _generating
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome),
+                    label: Text(
+                      _generating ? 'Generating case...' : 'Get New Case',
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -288,6 +373,8 @@ class _CaseCard extends StatelessWidget {
         contentPadding: const EdgeInsets.all(16),
         title: Text(
           theCase.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.titleMedium,
         ),
         subtitle: Padding(
@@ -338,20 +425,6 @@ class _StatusPill extends StatelessWidget {
       PlayStatus.inProgress => ('Unsolved', Colors.orange),
       PlayStatus.unopened => ('New', Colors.grey),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-      ),
-    );
+    return StatusPill(label: label, color: color);
   }
 }

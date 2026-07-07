@@ -25,7 +25,7 @@ const CORS_HEADERS = {
 };
 
 const MODEL = "gemini-2.5-flash";
-const MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 3;
 
 // The worked example given to the model is the actual "Missing Diamond"
 // case already shipped in the app -- real, schema-valid content, not a
@@ -233,6 +233,15 @@ function validateCase(data: unknown): ValidationResult {
   return { ok: errors.length === 0, errors };
 }
 
+// The prompt-level no-repeat instruction is a request, not a constraint --
+// the model has been observed ignoring it (two independent "Missing
+// Meteorite" cases). This is the enforced backstop.
+function titleCollides(title: string, existingTitles: string[]): boolean {
+  const normalize = (s: string) => s.trim().toLowerCase();
+  const normalizedTitle = normalize(title);
+  return existingTitles.some((existing) => normalize(existing) === normalizedTitle);
+}
+
 function extractJson(text: string): unknown {
   const trimmed = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
   return JSON.parse(trimmed);
@@ -326,6 +335,14 @@ Deno.serve(async (req: Request) => {
 
     const result = validateCase(candidate);
     if (result.ok) {
+      const title = (candidate as Record<string, unknown>).title as string;
+      if (titleCollides(title, existingTitles)) {
+        lastErrors = [`title "${title}" duplicates an existing case`];
+        prompt = `Your previous response reused an existing title ("${title}"). Titles already in use:\n${
+          existingTitles.map((t) => `- ${t}`).join("\n")
+        }\n\nAuthor a fully new case with a different setting, crime, and premise -- not just a different title on the same idea. Return ONLY the JSON object.`;
+        continue;
+      }
       parsed = candidate as Record<string, unknown>;
       break;
     }
