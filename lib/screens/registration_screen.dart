@@ -8,6 +8,8 @@ import '../core/theme.dart';
 import '../tier/tier_providers.dart';
 import '../tier/tier_service.dart';
 
+enum _SignUpMethod { google, apple, facebook, email }
+
 /// Shown either proactively (a guest taps "Register" on Case Files) or as a
 /// forced prompt once a guest has used up their free cases. Free is the
 /// only tier that's actually selectable right now -- Lite/Premium show
@@ -48,10 +50,63 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     super.dispose();
   }
 
-  Future<void> _registerFree() async {
+  Future<void> _pickRegistrationMethod() async {
+    final choice = await showModalBottomSheet<_SignUpMethod>(
+      context: context,
+      backgroundColor: kSurfaceCard,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Continue with', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.g_mobiledata, size: 32),
+              title: const Text('Google'),
+              onTap: () => Navigator.pop(ctx, _SignUpMethod.google),
+            ),
+            ListTile(
+              leading: const Icon(Icons.apple),
+              title: const Text('Apple'),
+              onTap: () => Navigator.pop(ctx, _SignUpMethod.apple),
+            ),
+            ListTile(
+              leading: const Icon(Icons.facebook),
+              title: const Text('Facebook'),
+              onTap: () => Navigator.pop(ctx, _SignUpMethod.facebook),
+            ),
+            ListTile(
+              leading: const Icon(Icons.email_outlined),
+              title: const Text('Email address'),
+              onTap: () => Navigator.pop(ctx, _SignUpMethod.email),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case _SignUpMethod.google:
+        await _registerWithOAuth(OAuthProvider.google);
+      case _SignUpMethod.apple:
+        await _registerWithOAuth(OAuthProvider.apple);
+      case _SignUpMethod.facebook:
+        await _registerWithOAuth(OAuthProvider.facebook);
+      case _SignUpMethod.email:
+        await _promptForEmail();
+    }
+  }
+
+  Future<void> _registerWithOAuth(OAuthProvider provider) async {
     setState(() => _registering = true);
     try {
-      await ref.read(tierGateServiceProvider).registerWithGoogle();
+      await ref.read(tierGateServiceProvider).registerWithProvider(provider);
     } catch (err) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -63,7 +118,49 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
   }
 
-  void _showNotYetAvailable(String tierName) {
+  Future<void> _promptForEmail() async {
+    final controller = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Register with email'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(hintText: 'you@example.com'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Send link'),
+          ),
+        ],
+      ),
+    );
+    if (email == null || email.isEmpty || !mounted) return;
+    setState(() => _registering = true);
+    try {
+      await ref.read(tierGateServiceProvider).registerWithEmail(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Check $email for a confirmation link.')),
+        );
+      }
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send the link: $err')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _registering = false);
+    }
+  }
+
+  void _showNotYetAvailable(UserTier tier, String tierName) {
+    ref.read(tierGateServiceProvider).logTierInterest(tier);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -112,34 +209,38 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               priceLabel: 'Free forever',
               blurb: '1 new case per day, plus every case already in your list.',
               busy: _registering,
-              onTap: _registerFree,
-              ctaLabel: 'Continue with Google',
+              onTap: _pickRegistrationMethod,
+              ctaLabel: 'Register Now',
               highlight: true,
             ),
             const SizedBox(height: 12),
             _TierCard(
               name: 'Detective Daily · Lite',
               price: '₹199',
-              priceLabel: '₹99/mo',
+              priceLabel: '₹10/mo',
+              showLaunchOffer: true,
               blurb: '3 new cases per day.',
               busy: false,
-              onTap: () => _showNotYetAvailable('Lite'),
+              onTap: () => _showNotYetAvailable(UserTier.lite, 'Lite'),
               ctaLabel: 'Select Lite',
             ),
             const SizedBox(height: 12),
             _TierCard(
               name: 'Detective Daily · Premium',
               price: '₹299',
-              priceLabel: '₹199/mo',
+              priceLabel: '₹20/mo',
+              showLaunchOffer: true,
               blurb: 'Unlimited new cases, anytime.',
               busy: false,
-              onTap: () => _showNotYetAvailable('Premium'),
+              onTap: () => _showNotYetAvailable(UserTier.premium, 'Premium'),
               ctaLabel: 'Select Premium',
             ),
             const SizedBox(height: 24),
             Text('Compare plans', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const _ComparisonTable(),
+            const SizedBox(height: 6),
+            const Text('* Launch offer pricing', style: TextStyle(color: Colors.white38, fontSize: 11)),
           ],
         ),
       ),
@@ -154,6 +255,7 @@ class _TierCard extends StatelessWidget {
   final String blurb;
   final bool busy;
   final bool highlight;
+  final bool showLaunchOffer;
   final String ctaLabel;
   final VoidCallback onTap;
 
@@ -166,6 +268,7 @@ class _TierCard extends StatelessWidget {
     required this.ctaLabel,
     required this.onTap,
     this.highlight = false,
+    this.showLaunchOffer = false,
   });
 
   @override
@@ -184,6 +287,20 @@ class _TierCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
+                  if (showLaunchOffer) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: kAccentAmber.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'LAUNCH OFFER',
+                        style: TextStyle(color: kAccentAmber, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Row(
                     children: [
@@ -209,15 +326,18 @@ class _TierCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            FilledButton(
-              onPressed: busy ? null : onTap,
-              child: busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(ctaLabel),
+            SizedBox(
+              width: 140,
+              child: FilledButton(
+                onPressed: busy ? null : onTap,
+                child: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(ctaLabel, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+              ),
             ),
           ],
         ),
@@ -234,7 +354,7 @@ class _ComparisonTable extends StatelessWidget {
     const rows = [
       ('New cases / day', '1', '3', 'Unlimited'),
       ('Get New Case anytime', 'No', 'No', 'Yes'),
-      ('Price', 'Free', '₹99/mo', '₹199/mo'),
+      ('Price', 'Free', '₹10/mo*', '₹20/mo*'),
     ];
     return Container(
       decoration: BoxDecoration(

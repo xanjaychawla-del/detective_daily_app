@@ -84,6 +84,20 @@ class CaseRepositoryService {
     return Case.fromJson(data['case'] as Map<String, dynamic>);
   }
 
+  /// Fetches (generating and caching on first call) the ElevenLabs
+  /// narration of a case's incoming-call briefing.
+  Future<String> fetchBriefingAudioUrl(String caseId) async {
+    final response = await _client.functions.invoke(
+      'generate-briefing-audio',
+      body: {'caseId': caseId},
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic> || data['ok'] != true || data['audioUrl'] == null) {
+      throw Exception('Briefing audio failed: ${data is Map ? data['error'] : 'unknown_error'}');
+    }
+    return data['audioUrl'] as String;
+  }
+
   Future<Map<String, CaseRatingStats>> fetchRatingStats() async {
     final rows = await _client.from('case_rating_stats').select();
     return {

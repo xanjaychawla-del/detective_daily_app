@@ -61,6 +61,18 @@ class TierGateService {
     return (rows as List).length;
   }
 
+  /// Logs a tap on "Select Lite"/"Select Premium" so demand for the
+  /// not-yet-purchasable tiers can be measured. Best-effort -- never
+  /// blocks showing the "not available yet" dialog.
+  Future<void> logTierInterest(UserTier tier) async {
+    try {
+      final userId = _client.auth.currentUser!.id;
+      await _client.from('tier_interest').insert({'user_id': userId, 'tier': _tierToDb(tier)});
+    } catch (_) {
+      // Non-critical telemetry -- swallow failures.
+    }
+  }
+
   Future<int> newCasesOpenedToday() async {
     final userId = _client.auth.currentUser!.id;
     final rows = await _client.from('plays').select('opened_at').eq('user_id', userId);
@@ -73,15 +85,27 @@ class TierGateService {
     }).length;
   }
 
-  /// Links the current anonymous guest session to a Google identity,
+  /// Links the current anonymous guest session to an OAuth identity,
   /// preserving the same user id (and therefore their existing play
   /// history/ratings). Completes asynchronously via browser redirect --
   /// call [createProfile] once `auth.currentUser!.isAnonymous` flips to
-  /// false (see the app's onAuthStateChange listener).
-  Future<void> registerWithGoogle() async {
+  /// false (see the app's onAuthStateChange listener). Each provider needs
+  /// its own OAuth client configured in Supabase's Auth providers before
+  /// it actually works end to end.
+  Future<void> registerWithProvider(OAuthProvider provider) async {
     await _client.auth.linkIdentity(
-      OAuthProvider.google,
+      provider,
       redirectTo: 'io.supabase.detectivedaily://login-callback',
+    );
+  }
+
+  /// Passwordless upgrade path: attaches [email] to the current anonymous
+  /// session and sends a confirmation link. Clicking it confirms the
+  /// email and flips `is_anonymous` to false, same as an OAuth link.
+  Future<void> registerWithEmail(String email) async {
+    await _client.auth.updateUser(
+      UserAttributes(email: email),
+      emailRedirectTo: 'io.supabase.detectivedaily://login-callback',
     );
   }
 }
