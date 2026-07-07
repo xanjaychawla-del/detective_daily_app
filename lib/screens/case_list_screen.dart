@@ -6,6 +6,8 @@ import '../case_repository/case_repository_service.dart';
 import '../core/analytics.dart';
 import '../core/theme.dart';
 import '../game_engine/game_state.dart';
+import '../onboarding/coachmark_overlay.dart';
+import '../onboarding/onboarding_prefs.dart';
 import 'home_shell.dart';
 
 /// The app's launch screen: every case (authored + AI-generated) with its
@@ -23,15 +25,34 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
     with SingleTickerProviderStateMixin {
   bool _generating = false;
   bool _didPickInitialTab = false;
+  bool _showTutorial = false;
+  final _tabsKey = GlobalKey();
+  final _getNewCaseKey = GlobalKey();
   late final TabController _tabController = TabController(
     length: 3,
     vsync: this,
   );
 
   @override
+  void initState() {
+    super.initState();
+    OnboardingPrefs.hasSeen(kCaseFilesTutorialKey).then((seen) {
+      if (seen || !mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showTutorial = true);
+      });
+    });
+  }
+
+  @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _dismissTutorial() {
+    setState(() => _showTutorial = false);
+    OnboardingPrefs.markSeen(kCaseFilesTutorialKey);
   }
 
   // Unsolved is the default tab, but an empty Unsolved list on first load
@@ -94,10 +115,35 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
   Widget build(BuildContext context) {
     final casesAsync = ref.watch(caseListProvider);
 
+    return Stack(
+      children: [
+        _buildScaffold(context, casesAsync),
+        if (_showTutorial)
+          CoachmarkOverlay(
+            steps: [
+              CoachmarkStep(
+                targetKey: _tabsKey,
+                title: 'Unsolved · New · Archive',
+                description: 'Swipe or tap to switch between cases you\'re working on, new ones waiting, and ones you\'ve solved.',
+              ),
+              CoachmarkStep(
+                targetKey: _getNewCaseKey,
+                title: 'Get New Case',
+                description: 'Have the AI author a brand-new case just for you, on demand.',
+              ),
+            ],
+            onFinished: _dismissTutorial,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, AsyncValue<List<CaseListEntry>> casesAsync) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detective Daily - Case Files'),
         bottom: TabBar(
+          key: _tabsKey,
           controller: _tabController,
           tabs: const [
             Tab(text: 'Unsolved'),
@@ -155,6 +201,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
             Padding(
               padding: const EdgeInsets.all(16),
               child: SizedBox(
+                key: _getNewCaseKey,
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: _generating ? null : _getNewCase,

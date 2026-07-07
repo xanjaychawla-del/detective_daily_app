@@ -16,7 +16,10 @@ String _formatToday() {
 /// Shown on every screen, per the fairness rule that the case briefing
 /// should never be tucked away on just one tab.
 class CaseBriefingHeader extends ConsumerWidget {
-  const CaseBriefingHeader({super.key});
+  final GlobalKey? backButtonKey;
+  final GlobalKey? difficultyButtonKey;
+
+  const CaseBriefingHeader({super.key, this.backButtonKey, this.difficultyButtonKey});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,6 +40,7 @@ class CaseBriefingHeader extends ConsumerWidget {
               Row(
                 children: [
                   IconButton(
+                    key: backButtonKey,
                     icon: const Icon(Icons.arrow_back, color: Colors.white70),
                     tooltip: 'Case Files',
                     onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
@@ -53,6 +57,7 @@ class CaseBriefingHeader extends ConsumerWidget {
                     ),
                   ),
                   IconButton(
+                    key: difficultyButtonKey,
                     icon: const Icon(Icons.tune, color: Colors.white70),
                     tooltip: 'Difficulty',
                     onPressed: () => _showDifficultyDialog(context, ref),

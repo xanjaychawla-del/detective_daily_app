@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../game_engine/game_state.dart';
+import '../onboarding/coachmark_overlay.dart';
+import '../onboarding/onboarding_prefs.dart';
 import 'accusation_screen.dart';
 import 'case_briefing_header.dart';
 import 'case_intro_overlay.dart';
@@ -19,6 +21,10 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   bool _showIntro = true;
+  bool _showTutorial = false;
+  final _backButtonKey = GlobalKey();
+  final _difficultyButtonKey = GlobalKey();
+  final _navBarKey = GlobalKey();
 
   @override
   void initState() {
@@ -45,6 +51,22 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
     super.dispose();
   }
 
+  void _onIntroDismissed() {
+    if (!mounted) return;
+    setState(() => _showIntro = false);
+    OnboardingPrefs.hasSeen(kHomeShellTutorialKey).then((seen) {
+      if (seen || !mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _showTutorial = true);
+      });
+    });
+  }
+
+  void _dismissTutorial() {
+    setState(() => _showTutorial = false);
+    OnboardingPrefs.markSeen(kHomeShellTutorialKey);
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<GameState>(gameStateProvider, (previous, next) {
@@ -67,7 +89,10 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
         children: [
           Column(
             children: [
-              const CaseBriefingHeader(),
+              CaseBriefingHeader(
+                backButtonKey: _backButtonKey,
+                difficultyButtonKey: _difficultyButtonKey,
+              ),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -84,15 +109,35 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
             CaseIntroOverlay(
               title: theCase.title,
               briefing: theCase.briefing,
-              onDismissed: () {
-                if (mounted) setState(() => _showIntro = false);
-              },
+              onDismissed: _onIntroDismissed,
+            ),
+          if (_showTutorial)
+            CoachmarkOverlay(
+              steps: [
+                CoachmarkStep(
+                  targetKey: _backButtonKey,
+                  title: 'Back to Case Files',
+                  description: 'Tap here anytime to return to your case list -- your progress is saved.',
+                ),
+                CoachmarkStep(
+                  targetKey: _difficultyButtonKey,
+                  title: 'Difficulty',
+                  description: 'Turn on Hard Mode to make Focus a limited resource for a bigger challenge.',
+                ),
+                CoachmarkStep(
+                  targetKey: _navBarKey,
+                  title: 'Suspects · Evidence · Accuse',
+                  description: 'Swipe or tap to move between interviewing suspects, reviewing evidence, and making your accusation.',
+                ),
+              ],
+              onFinished: _dismissTutorial,
             ),
         ],
       ),
       bottomNavigationBar: _showIntro
           ? null
           : NavigationBar(
+              key: _navBarKey,
               selectedIndex: tabIndex,
               onDestinationSelected: (i) => ref.read(homeTabIndexProvider.notifier).state = i,
               destinations: const [
