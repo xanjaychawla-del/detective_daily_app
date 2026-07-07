@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart';
 
-import '../ai_adapter/ai_adapter_service.dart';
+import '../case_repository/case_repository_providers.dart';
 import '../conversation_engine/conversation_engine.dart';
 import '../game_engine/game_state.dart';
 import '../truth_engine/models.dart';
@@ -22,8 +25,8 @@ class InterrogationScreen extends ConsumerStatefulWidget {
 
 class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   final List<_TranscriptLine> _lines = [];
-  final List<SpokenLine> _history = [];
   final ScrollController _scroll = ScrollController();
+  final AudioPlayer _player = AudioPlayer();
   bool _loading = false;
 
   Suspect get _suspect => ref.read(caseProvider)!.suspectById(widget.suspectId);
@@ -37,6 +40,7 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   @override
   void dispose() {
     _scroll.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -59,20 +63,36 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
 
   Future<void> _sayFact(Fact fact, {required String category}) async {
     setState(() => _loading = true);
-    final phrased = await ref.read(aiAdapterServiceProvider).narrate(
-          suspectName: _suspect.name,
-          persona: _suspect.persona,
-          fact: fact.text,
-          category: category,
-          history: _history,
-        );
+    String text = fact.text;
+    String? audioUrl;
+    try {
+      final narration = await ref.read(caseRepositoryServiceProvider).fetchFactNarration(
+            caseId: ref.read(caseProvider)!.id,
+            suspect: _suspect,
+            factId: fact.id,
+            factText: fact.text,
+            category: category,
+          );
+      text = narration.phrasedText;
+      audioUrl = narration.audioUrl;
+    } catch (_) {
+      // Narration is a nice-to-have, never a blocker -- fall back to the
+      // raw fact text if phrasing/narration fails for any reason.
+    }
     if (!mounted) return;
     setState(() {
-      _lines.add(_TranscriptLine(speaker: _suspect.name, text: phrased));
-      _history.add(SpokenLine(role: 'suspect', text: phrased));
+      _lines.add(_TranscriptLine(speaker: _suspect.name, text: text));
       _loading = false;
     });
     _scrollToBottom();
+    if (audioUrl != null) {
+      try {
+        await _player.setUrl(audioUrl);
+        unawaited(_player.play());
+      } catch (_) {
+        // Silent fallback -- the text is already shown either way.
+      }
+    }
   }
 
   Future<void> _ask(FactCategory category) async {

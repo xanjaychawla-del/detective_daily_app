@@ -1,17 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart';
 
+import '../case_repository/case_repository_providers.dart';
 import '../game_engine/game_state.dart';
 import '../truth_engine/models.dart';
 
 /// Evidence and background checks are scoped per suspect (not one global
 /// unlockable list), and background checks are locked until that suspect
 /// has been interviewed at least once.
-class EvidenceBoardScreen extends ConsumerWidget {
+class EvidenceBoardScreen extends ConsumerStatefulWidget {
   const EvidenceBoardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EvidenceBoardScreen> createState() => _EvidenceBoardScreenState();
+}
+
+enum _TimelineAudioState { idle, loading, playing }
+
+class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
+  final AudioPlayer _player = AudioPlayer();
+  _TimelineAudioState _audioState = _TimelineAudioState.idle;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed && mounted) {
+        setState(() => _audioState = _TimelineAudioState.idle);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleTimelineNarration(String caseId) async {
+    if (_audioState == _TimelineAudioState.playing) {
+      await _player.pause();
+      setState(() => _audioState = _TimelineAudioState.idle);
+      return;
+    }
+    setState(() => _audioState = _TimelineAudioState.loading);
+    try {
+      final audioUrl = await ref.read(caseRepositoryServiceProvider).fetchTimelineAudioUrl(caseId);
+      if (!mounted) return;
+      await _player.setUrl(audioUrl);
+      await _player.play();
+      if (!mounted) return;
+      setState(() => _audioState = _TimelineAudioState.playing);
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _audioState = _TimelineAudioState.idle);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not play the timeline narration: $err')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theCase = ref.watch(caseProvider)!;
     final gameState = ref.watch(gameStateProvider);
     final notifier = ref.read(gameStateProvider.notifier);
@@ -20,7 +71,21 @@ class EvidenceBoardScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Case Timeline', style: Theme.of(context).textTheme.titleMedium),
+        Row(
+          children: [
+            Text('Case Timeline', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            IconButton(
+              onPressed: _audioState == _TimelineAudioState.loading
+                  ? null
+                  : () => _toggleTimelineNarration(theCase.id),
+              icon: _audioState == _TimelineAudioState.loading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_audioState == _TimelineAudioState.playing ? Icons.pause_circle : Icons.play_circle),
+              tooltip: 'Play timeline narration',
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         for (final entry in theCase.timeline) _TimelineTile(entry: entry),
         const SizedBox(height: 24),

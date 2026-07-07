@@ -84,8 +84,8 @@ class CaseRepositoryService {
     return Case.fromJson(data['case'] as Map<String, dynamic>);
   }
 
-  /// Fetches (generating and caching on first call) the ElevenLabs
-  /// narration of a case's incoming-call briefing.
+  /// Fetches (generating and caching on first call) the Polly narration of
+  /// a case's incoming-call briefing.
   Future<String> fetchBriefingAudioUrl(String caseId) async {
     final response = await _client.functions.invoke(
       'generate-briefing-audio',
@@ -94,6 +94,49 @@ class CaseRepositoryService {
     final data = response.data;
     if (data is! Map<String, dynamic> || data['ok'] != true || data['audioUrl'] == null) {
       throw Exception('Briefing audio failed: ${data is Map ? data['error'] : 'unknown_error'}');
+    }
+    return data['audioUrl'] as String;
+  }
+
+  /// Fetches (phrasing + narrating and caching on first call) a single
+  /// suspect fact's dialogue line. Every player gets the same phrasing and
+  /// audio for a given fact -- see migration 011.
+  Future<({String phrasedText, String audioUrl})> fetchFactNarration({
+    required String caseId,
+    required Suspect suspect,
+    required String factId,
+    required String factText,
+    required String category,
+  }) async {
+    final response = await _client.functions.invoke(
+      'generate-fact-narration',
+      body: {
+        'caseId': caseId,
+        'suspectId': suspect.id,
+        'factId': factId,
+        'factText': factText,
+        'category': category,
+        'persona': suspect.persona,
+        'suspectName': suspect.name,
+      },
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic> || data['ok'] != true || data['audioUrl'] == null) {
+      throw Exception('Fact narration failed: ${data is Map ? data['error'] : 'unknown_error'}');
+    }
+    return (phrasedText: data['phrasedText'] as String, audioUrl: data['audioUrl'] as String);
+  }
+
+  /// Fetches (generating and caching on first call) the Polly narration of
+  /// a case's Evidence Board timeline, read exactly as written.
+  Future<String> fetchTimelineAudioUrl(String caseId) async {
+    final response = await _client.functions.invoke(
+      'generate-timeline-audio',
+      body: {'caseId': caseId},
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic> || data['ok'] != true || data['audioUrl'] == null) {
+      throw Exception('Timeline audio failed: ${data is Map ? data['error'] : 'unknown_error'}');
     }
     return data['audioUrl'] as String;
   }
