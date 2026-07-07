@@ -25,6 +25,12 @@ final hardModeProvider = StateProvider<bool>((ref) => false);
 /// outcome reveal) can reset it back to the roster when a case changes.
 final homeTabIndexProvider = StateProvider<int>((ref) => 0);
 
+/// Whether the full case briefing text is showing in the header (vs.
+/// collapsed to just the title). Starts expanded, since it lands there
+/// straight out of the case-intro screen -- the player can collapse it
+/// once they've read it, and re-expand it anytime from any tab.
+final briefExpandedProvider = StateProvider<bool>((ref) => true);
+
 enum GameOutcome { inProgress, solved, gaveUp }
 
 class GameState {

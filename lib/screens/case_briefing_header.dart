@@ -23,6 +23,7 @@ class CaseBriefingHeader extends ConsumerWidget {
     final theCase = ref.watch(caseProvider)!;
     final focus = ref.watch(gameStateProvider.select((s) => s.focus));
     final hardMode = ref.watch(hardModeProvider);
+    final briefExpanded = ref.watch(briefExpandedProvider);
 
     return Material(
       color: kSurfaceCard,
@@ -58,9 +59,31 @@ class CaseBriefingHeader extends ConsumerWidget {
                   ),
                 ],
               ),
-              Text(theCase.title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 6),
-              Text(theCase.briefing, style: const TextStyle(color: Colors.white70)),
+              InkWell(
+                onTap: () => ref.read(briefExpandedProvider.notifier).state = !briefExpanded,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(theCase.title, style: Theme.of(context).textTheme.titleLarge),
+                    ),
+                    Icon(
+                      briefExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: Colors.white54,
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                child: briefExpanded
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(theCase.briefing, style: const TextStyle(color: Colors.white70)),
+                      )
+                    : const SizedBox(width: double.infinity),
+              ),
               if (hardMode) ...[
                 const SizedBox(height: 12),
                 Row(
