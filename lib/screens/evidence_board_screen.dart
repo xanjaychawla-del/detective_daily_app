@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:just_audio/just_audio.dart';
 
+import '../case_repository/case_repository_providers.dart';
 import '../game_engine/game_state.dart';
 import '../onboarding/coachmark_overlay.dart';
 import '../onboarding/onboarding_prefs.dart';
@@ -17,21 +18,22 @@ class EvidenceBoardScreen extends ConsumerStatefulWidget {
   ConsumerState<EvidenceBoardScreen> createState() => _EvidenceBoardScreenState();
 }
 
+enum _TimelineAudioState { idle, loading, playing }
+
 class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
-  final FlutterTts _tts = FlutterTts();
+  final AudioPlayer _player = AudioPlayer();
   final _timelineKey = GlobalKey();
   final _suspectsKey = GlobalKey();
-  bool _playingTimeline = false;
+  _TimelineAudioState _audioState = _TimelineAudioState.idle;
   bool _showTutorial = false;
 
   @override
   void initState() {
     super.initState();
-    _tts.setCompletionHandler(() {
-      if (mounted) setState(() => _playingTimeline = false);
-    });
-    _tts.setErrorHandler((_) {
-      if (mounted) setState(() => _playingTimeline = false);
+    _player.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed && mounted) {
+        setState(() => _audioState = _TimelineAudioState.idle);
+      }
     });
     OnboardingPrefs.hasSeen(kEvidenceBoardTutorialKey).then((seen) {
       if (seen || !mounted) return;
@@ -43,7 +45,7 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
 
   @override
   void dispose() {
-    _tts.stop();
+    _player.dispose();
     super.dispose();
   }
 
@@ -52,32 +54,23 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
     OnboardingPrefs.markSeen(kEvidenceBoardTutorialKey);
   }
 
-  // On-device TTS reading the timeline exactly as written -- no new AI
-  // writing involved. See generate-timeline-audio for the cached-cloud
-  // version, parked until there's enough traffic to justify it.
-  String _buildTimelineScript(Case theCase) {
-    final nameById = {for (final s in theCase.suspects) s.id: s.name};
-    final lines = theCase.timeline.map((entry) {
-      if (entry.type == TimelineEntryType.confirmed) return 'At ${entry.time}, ${entry.text}';
-      final name = entry.suspectId != null ? nameById[entry.suspectId] : null;
-      return 'At ${entry.time}, according to ${name ?? 'one witness'}, ${entry.text}';
-    });
-    return "Here's what we know about the timeline of events. ${lines.join(' ')} That's everything on record so far.";
-  }
-
-  Future<void> _toggleTimelineNarration(Case theCase) async {
-    if (_playingTimeline) {
-      await _tts.stop();
-      setState(() => _playingTimeline = false);
+  Future<void> _toggleTimelineNarration(String caseId) async {
+    if (_audioState == _TimelineAudioState.playing) {
+      await _player.pause();
+      setState(() => _audioState = _TimelineAudioState.idle);
       return;
     }
-    setState(() => _playingTimeline = true);
+    setState(() => _audioState = _TimelineAudioState.loading);
     try {
-      await _tts.setSpeechRate(0.46);
-      await _tts.speak(_buildTimelineScript(theCase));
+      final audioUrl = await ref.read(caseRepositoryServiceProvider).fetchTimelineAudioUrl(caseId);
+      if (!mounted) return;
+      await _player.setUrl(audioUrl);
+      await _player.play();
+      if (!mounted) return;
+      setState(() => _audioState = _TimelineAudioState.playing);
     } catch (err) {
       if (!mounted) return;
-      setState(() => _playingTimeline = false);
+      setState(() => _audioState = _TimelineAudioState.idle);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not play the timeline narration: $err')),
       );
@@ -100,8 +93,12 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
             Text('Case Timeline', style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
             IconButton(
-              onPressed: () => _toggleTimelineNarration(theCase),
-              icon: Icon(_playingTimeline ? Icons.pause_circle : Icons.play_circle),
+              onPressed: _audioState == _TimelineAudioState.loading
+                  ? null
+                  : () => _toggleTimelineNarration(theCase.id),
+              icon: _audioState == _TimelineAudioState.loading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_audioState == _TimelineAudioState.playing ? Icons.pause_circle : Icons.play_circle),
               tooltip: 'Play timeline narration',
             ),
           ],

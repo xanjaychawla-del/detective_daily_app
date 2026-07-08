@@ -1,19 +1,15 @@
-// Phrases ONE suspect fact via Gemini and caches it permanently per
-// (case, fact) -- every player gets the identical line, phrased exactly
-// once, not once per play. See migration 011 for why this replaces the
-// old narrate function's live, history-aware phrasing.
+// Phrases ONE suspect fact via Gemini and narrates it via Google Cloud
+// TTS, then caches both permanently per (case, fact) -- every player gets
+// the identical line, phrased and synthesized exactly once, not once per
+// play. See migration 011 for why this replaces the old narrate
+// function's live, history-aware phrasing.
 //
-// Audio synthesis (Polly) is parked for now -- the client speaks the
-// returned text via on-device TTS instead, deliberately mechanical
-// sounding until there's enough traffic to justify the cloud-voice cost.
-// fact_narration.audio_url stays nullable and unused here; wiring Polly
-// back in later just means filling it in alongside phrased_text below.
-//
-// Secrets: GEMINI_API_KEY
+// Secrets: GEMINI_API_KEY, GOOGLE_TTS_API_KEY
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 // Deploy with --no-verify-jwt, matching the rest of this project's functions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { pickSuspectVoice, synthesizeSpeech } from "../_shared/google-tts.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -75,9 +71,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+  const googleTtsApiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!geminiApiKey || !supabaseUrl || !serviceRoleKey) {
+  if (!geminiApiKey || !googleTtsApiKey || !supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ error: "server_misconfigured" }, 500);
   }
 
@@ -101,18 +98,18 @@ Deno.serve(async (req: Request) => {
 
   const { data: existing } = await supabase
     .from("fact_narration")
-    .select("phrased_text")
+    .select("phrased_text, audio_url")
     .eq("case_id", caseId)
     .eq("fact_id", factId)
     .maybeSingle();
 
-  if (existing) {
-    return jsonResponse({ ok: true, phrasedText: existing.phrased_text }, 200);
+  if (existing?.audio_url) {
+    return jsonResponse({ ok: true, phrasedText: existing.phrased_text, audioUrl: existing.audio_url }, 200);
   }
 
   let phrasedText: string;
   try {
-    phrasedText = await phraseWithGemini(geminiApiKey, {
+    phrasedText = existing?.phrased_text ?? await phraseWithGemini(geminiApiKey, {
       suspectName,
       persona: typeof persona === "string" ? persona : "",
       fact: factText,
@@ -123,13 +120,36 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "phrasing_failed" }, 502);
   }
 
-  const { error: insertError } = await supabase
+  let audioBytes: Uint8Array;
+  try {
+    audioBytes = await synthesizeSpeech(googleTtsApiKey, phrasedText, pickSuspectVoice(suspectId));
+  } catch (err) {
+    console.error("Google TTS call failed:", (err as Error)?.message ?? err);
+    return jsonResponse({ error: "tts_failed" }, 502);
+  }
+
+  const path = `${caseId}/${factId}.mp3`;
+  const { error: uploadError } = await supabase.storage
+    .from("case-audio")
+    .upload(path, audioBytes, { contentType: "audio/mpeg", upsert: true });
+  if (uploadError) {
+    console.error("Storage upload failed:", uploadError.message);
+    return jsonResponse({ error: "upload_failed" }, 500);
+  }
+
+  const { data: publicUrlData } = supabase.storage.from("case-audio").getPublicUrl(path);
+  const audioUrl = publicUrlData.publicUrl;
+
+  const { error: upsertError } = await supabase
     .from("fact_narration")
-    .insert({ case_id: caseId, suspect_id: suspectId, fact_id: factId, phrased_text: phrasedText });
-  if (insertError) {
-    console.error("Failed to cache fact narration:", insertError.message);
+    .upsert(
+      { case_id: caseId, suspect_id: suspectId, fact_id: factId, phrased_text: phrasedText, audio_url: audioUrl },
+      { onConflict: "case_id, fact_id" },
+    );
+  if (upsertError) {
+    console.error("Failed to cache fact narration:", upsertError.message);
     // Not fatal -- still return what was generated for this call.
   }
 
-  return jsonResponse({ ok: true, phrasedText }, 200);
+  return jsonResponse({ ok: true, phrasedText, audioUrl }, 200);
 });

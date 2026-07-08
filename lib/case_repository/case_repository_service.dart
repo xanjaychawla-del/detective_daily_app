@@ -98,11 +98,10 @@ class CaseRepositoryService {
     return data['audioUrl'] as String;
   }
 
-  /// Fetches (phrasing and caching on first call) a single suspect fact's
-  /// dialogue line -- every player gets the same phrasing for a given
-  /// fact, spoken locally via on-device TTS (see migration 011; audio
-  /// caching is parked for now, this only caches the Gemini phrasing).
-  Future<String> fetchFactNarration({
+  /// Fetches (phrasing + narrating and caching on first call) a single
+  /// suspect fact's dialogue line. Every player gets the same phrasing and
+  /// audio for a given fact -- see migration 011.
+  Future<({String phrasedText, String audioUrl})> fetchFactNarration({
     required String caseId,
     required Suspect suspect,
     required String factId,
@@ -122,10 +121,10 @@ class CaseRepositoryService {
       },
     );
     final data = response.data;
-    if (data is! Map<String, dynamic> || data['ok'] != true || data['phrasedText'] == null) {
+    if (data is! Map<String, dynamic> || data['ok'] != true || data['audioUrl'] == null) {
       throw Exception('Fact narration failed: ${data is Map ? data['error'] : 'unknown_error'}');
     }
-    return data['phrasedText'] as String;
+    return (phrasedText: data['phrasedText'] as String, audioUrl: data['audioUrl'] as String);
   }
 
   /// Fetches (generating and caching on first call) the Polly narration of

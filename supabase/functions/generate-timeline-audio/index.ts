@@ -4,22 +4,17 @@
 // cases.timeline_audio_url and reused by every player, same pattern as
 // generate-briefing-audio.
 //
-// Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+// Secrets: GOOGLE_TTS_API_KEY
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 // Deploy with --no-verify-jwt, matching the rest of this project's functions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { PollyClient, SynthesizeSpeechCommand } from "https://esm.sh/@aws-sdk/client-polly@3";
+import { INSPECTOR_VOICE, synthesizeSpeech } from "../_shared/google-tts.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Same voice as the incoming-call inspector -- this is still "your
-// contact on the case" reading you the record.
-const VOICE_ID = "Matthew";
-const AWS_REGION = "us-east-1";
 
 interface TimelineEntry {
   time: string;
@@ -60,11 +55,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "method_not_allowed" }, 405);
   }
 
-  const awsAccessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
-  const awsSecretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+  const googleTtsApiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!awsAccessKeyId || !awsSecretAccessKey || !supabaseUrl || !serviceRoleKey) {
+  if (!googleTtsApiKey || !supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ error: "server_misconfigured" }, 500);
   }
 
@@ -94,20 +88,9 @@ Deno.serve(async (req: Request) => {
 
   let audioBytes: Uint8Array;
   try {
-    const polly = new PollyClient({
-      region: AWS_REGION,
-      credentials: { accessKeyId: awsAccessKeyId, secretAccessKey: awsSecretAccessKey },
-    });
-    const response = await polly.send(new SynthesizeSpeechCommand({
-      Text: script,
-      OutputFormat: "mp3",
-      VoiceId: VOICE_ID,
-      Engine: "neural",
-    }));
-    if (!response.AudioStream) throw new Error("empty_audio_stream");
-    audioBytes = await response.AudioStream.transformToByteArray();
+    audioBytes = await synthesizeSpeech(googleTtsApiKey, script, INSPECTOR_VOICE);
   } catch (err) {
-    console.error("Polly call failed:", (err as Error)?.message ?? err);
+    console.error("Google TTS call failed:", (err as Error)?.message ?? err);
     return jsonResponse({ error: "tts_failed" }, 502);
   }
 

@@ -1,31 +1,21 @@
 // The incoming-call briefing script is identical for every player of a
 // given case (same title, briefing, and deterministically-picked inspector
-// name), so it's synthesized once via Amazon Polly and cached on the case
-// row + Supabase Storage rather than re-synthesized (and re-billed) on
-// every play. First caller for a case pays the latency of generation;
+// name), so it's synthesized once via Google Cloud TTS and cached on the
+// case row + Supabase Storage rather than re-synthesized (and re-billed)
+// on every play. First caller for a case pays the latency of generation;
 // everyone after gets the cached URL back immediately.
 //
-// Polly over ElevenLabs specifically for the free tier headroom: 1M
-// characters/month free for Neural voices (first 12 months) vs a few
-// thousand on ElevenLabs' free tier -- comfortable margin even before
-// caching, and caching means the real lifetime usage stays tiny anyway.
-//
-// Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+// Secrets: GOOGLE_TTS_API_KEY
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 // Deploy with --no-verify-jwt, matching narrate/generate-case.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { PollyClient, SynthesizeSpeechCommand } from "https://esm.sh/@aws-sdk/client-polly@3";
+import { INSPECTOR_VOICE, synthesizeSpeech } from "../_shared/google-tts.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// "Matthew" -- a standard Polly Neural voice (US English), warm/clear,
-// fits an inspector calling with case details.
-const VOICE_ID = "Matthew";
-const AWS_REGION = "us-east-1";
 
 // Mirrors lib/screens/incoming_call_overlay.dart's _kInspectorNames and
 // hash exactly, so the name spoken in the cached audio always matches the
@@ -65,11 +55,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "method_not_allowed" }, 405);
   }
 
-  const awsAccessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
-  const awsSecretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+  const googleTtsApiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!awsAccessKeyId || !awsSecretAccessKey || !supabaseUrl || !serviceRoleKey) {
+  if (!googleTtsApiKey || !supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ error: "server_misconfigured" }, 500);
   }
 
@@ -101,20 +90,9 @@ Deno.serve(async (req: Request) => {
 
   let audioBytes: Uint8Array;
   try {
-    const polly = new PollyClient({
-      region: AWS_REGION,
-      credentials: { accessKeyId: awsAccessKeyId, secretAccessKey: awsSecretAccessKey },
-    });
-    const response = await polly.send(new SynthesizeSpeechCommand({
-      Text: script,
-      OutputFormat: "mp3",
-      VoiceId: VOICE_ID,
-      Engine: "neural",
-    }));
-    if (!response.AudioStream) throw new Error("empty_audio_stream");
-    audioBytes = await response.AudioStream.transformToByteArray();
+    audioBytes = await synthesizeSpeech(googleTtsApiKey, script, INSPECTOR_VOICE);
   } catch (err) {
-    console.error("Polly call failed:", (err as Error)?.message ?? err);
+    console.error("Google TTS call failed:", (err as Error)?.message ?? err);
     return jsonResponse({ error: "tts_failed" }, 502);
   }
 

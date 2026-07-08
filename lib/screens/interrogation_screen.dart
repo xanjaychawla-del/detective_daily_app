@@ -1,8 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../case_repository/case_repository_providers.dart';
 import '../conversation_engine/conversation_engine.dart';
@@ -28,7 +26,7 @@ class InterrogationScreen extends ConsumerStatefulWidget {
 class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   final List<_TranscriptLine> _lines = [];
   final ScrollController _scroll = ScrollController();
-  final FlutterTts _tts = FlutterTts();
+  final AudioPlayer _player = AudioPlayer();
   final _categoriesKey = GlobalKey();
   final _presentEvidenceKey = GlobalKey();
   bool _loading = false;
@@ -51,7 +49,7 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   @override
   void dispose() {
     _scroll.dispose();
-    _tts.stop();
+    _player.dispose();
     super.dispose();
   }
 
@@ -80,17 +78,20 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   Future<void> _sayFact(Fact fact, {required String category}) async {
     setState(() => _loading = true);
     String text = fact.text;
+    String? audioUrl;
     try {
-      text = await ref.read(caseRepositoryServiceProvider).fetchFactNarration(
+      final narration = await ref.read(caseRepositoryServiceProvider).fetchFactNarration(
             caseId: ref.read(caseProvider)!.id,
             suspect: _suspect,
             factId: fact.id,
             factText: fact.text,
             category: category,
           );
+      text = narration.phrasedText;
+      audioUrl = narration.audioUrl;
     } catch (_) {
-      // Phrasing is a nice-to-have, never a blocker -- fall back to the
-      // raw fact text if it fails for any reason.
+      // Narration is a nice-to-have, never a blocker -- fall back to the
+      // raw fact text if phrasing/narration fails for any reason.
     }
     if (!mounted) return;
     setState(() {
@@ -98,11 +99,13 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
       _loading = false;
     });
     _scrollToBottom();
-    try {
-      await _tts.setSpeechRate(0.46);
-      unawaited(_tts.speak(text));
-    } catch (_) {
-      // Silent fallback -- the text is already shown either way.
+    if (audioUrl != null) {
+      try {
+        await _player.setUrl(audioUrl);
+        await _player.play();
+      } catch (_) {
+        // Silent fallback -- the text is already shown either way.
+      }
     }
   }
 
