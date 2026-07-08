@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -54,7 +56,41 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
     OnboardingPrefs.markSeen(kEvidenceBoardTutorialKey);
   }
 
-  Future<void> _toggleTimelineNarration(String caseId) async {
+  /// Suspects with claimed timeline entries, in the order those claims
+  /// first appear in the timeline -- a fixed, case-defined order regardless
+  /// of interview order, so it's stable both for display and for the
+  /// server-side narration cache key.
+  List<String> _claimingSuspectIds(Case theCase) {
+    final seen = <String>{};
+    final ids = <String>[];
+    for (final entry in theCase.timeline) {
+      final suspectId = entry.suspectId;
+      if (entry.type != TimelineEntryType.claimed || suspectId == null || seen.contains(suspectId)) continue;
+      seen.add(suspectId);
+      ids.add(suspectId);
+    }
+    return ids;
+  }
+
+  /// 'confirmed' first, then one entry per suspect the player has actually
+  /// interviewed (their claim stays unheard until earned), then -- if
+  /// anyone's still uninterviewed -- a closing reminder naming who's left.
+  List<String> _orderedNarrationSegments(Case theCase, Set<String> interviewedSuspectIds) {
+    final claimants = _claimingSuspectIds(theCase);
+    final keys = <String>['confirmed'];
+    final pending = <String>[];
+    for (final suspectId in claimants) {
+      if (interviewedSuspectIds.contains(suspectId)) {
+        keys.add(suspectId);
+      } else {
+        pending.add(suspectId);
+      }
+    }
+    if (pending.isNotEmpty) keys.add('pending:${pending.join(',')}');
+    return keys;
+  }
+
+  Future<void> _toggleTimelineNarration(Case theCase, Set<String> interviewedSuspectIds) async {
     if (_audioState == _TimelineAudioState.playing) {
       await _player.pause();
       setState(() => _audioState = _TimelineAudioState.idle);
@@ -62,11 +98,23 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
     }
     setState(() => _audioState = _TimelineAudioState.loading);
     try {
-      final audioUrl = await ref.read(caseRepositoryServiceProvider).fetchTimelineAudioUrl(caseId);
+      final repo = ref.read(caseRepositoryServiceProvider);
+      final segmentKeys = _orderedNarrationSegments(theCase, interviewedSuspectIds);
+      final urls = await Future.wait(segmentKeys.map(
+        (key) => repo.fetchTimelineSegmentAudioUrl(caseId: theCase.id, segmentKey: key),
+      ));
       if (!mounted) return;
-      await _player.setUrl(audioUrl);
-      await _player.play();
+      final playlist = ConcatenatingAudioSource(
+        children: [for (final url in urls) AudioSource.uri(Uri.parse(url))],
+      );
+      await _player.setAudioSource(playlist);
       if (!mounted) return;
+      // just_audio's play() future doesn't resolve until playback finishes
+      // (or is paused) -- awaiting it here would block this setState behind
+      // the entire narration and race with the completed-state listener
+      // above once it fires. Fire and forget; the listener owns idle/
+      // playing transitions from here.
+      unawaited(_player.play());
       setState(() => _audioState = _TimelineAudioState.playing);
     } catch (err) {
       if (!mounted) return;
@@ -95,7 +143,7 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
             IconButton(
               onPressed: _audioState == _TimelineAudioState.loading
                   ? null
-                  : () => _toggleTimelineNarration(theCase.id),
+                  : () => _toggleTimelineNarration(theCase, gameState.interviewedSuspectIds),
               icon: _audioState == _TimelineAudioState.loading
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : Icon(_audioState == _TimelineAudioState.playing ? Icons.pause_circle : Icons.play_circle),
@@ -104,7 +152,10 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        for (final entry in theCase.timeline) _TimelineTile(entry: entry),
+        for (final entry in theCase.timeline)
+          if (entry.type == TimelineEntryType.confirmed ||
+              gameState.interviewedSuspectIds.contains(entry.suspectId))
+            _TimelineTile(entry: entry),
         const SizedBox(height: 24),
         Text('Suspects', key: _suspectsKey, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -151,7 +202,8 @@ class _EvidenceBoardScreenState extends ConsumerState<EvidenceBoardScreen> {
                 targetKey: _timelineKey,
                 title: 'Case Timeline',
                 description: 'Confirmed events are solid facts; claimed events are what a suspect says happened -- '
-                    "which may not be true. Tap play to hear it narrated.",
+                    "which may not be true. A suspect's claim stays off the timeline entirely until you've "
+                    'interviewed them. Tap play to hear it narrated.',
               ),
               CoachmarkStep(
                 targetKey: _suspectsKey,
@@ -193,7 +245,10 @@ class _TimelineTile extends StatelessWidget {
           Expanded(
             child: Text(
               entry.text,
-              style: TextStyle(color: confirmed ? null : Colors.white54, fontStyle: confirmed ? FontStyle.normal : FontStyle.italic),
+              style: TextStyle(
+                color: confirmed ? null : Colors.white54,
+                fontStyle: confirmed ? FontStyle.normal : FontStyle.italic,
+              ),
             ),
           ),
         ],

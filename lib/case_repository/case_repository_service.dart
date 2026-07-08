@@ -127,16 +127,23 @@ class CaseRepositoryService {
     return (phrasedText: data['phrasedText'] as String, audioUrl: data['audioUrl'] as String);
   }
 
-  /// Fetches (generating and caching on first call) the Polly narration of
-  /// a case's Evidence Board timeline, read exactly as written.
-  Future<String> fetchTimelineAudioUrl(String caseId) async {
+  /// Fetches (phrasing + narrating and caching on first call) one segment of
+  /// the Evidence Board timeline narration -- either 'confirmed' (the
+  /// always-safe verified events) or a suspect id (that suspect's claimed
+  /// timeline entries, framed as their claim). Callers stitch the segments
+  /// they're allowed to hear together based on interview progress -- see
+  /// EvidenceBoardScreen.
+  Future<String> fetchTimelineSegmentAudioUrl({
+    required String caseId,
+    required String segmentKey,
+  }) async {
     final response = await _client.functions.invoke(
       'generate-timeline-audio',
-      body: {'caseId': caseId},
+      body: {'caseId': caseId, 'segmentKey': segmentKey},
     );
     final data = response.data;
     if (data is! Map<String, dynamic> || data['ok'] != true || data['audioUrl'] == null) {
-      throw Exception('Timeline audio failed: ${data is Map ? data['error'] : 'unknown_error'}');
+      throw Exception('Timeline segment audio failed: ${data is Map ? data['error'] : 'unknown_error'}');
     }
     return data['audioUrl'] as String;
   }

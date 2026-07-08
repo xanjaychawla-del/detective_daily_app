@@ -34,6 +34,17 @@ final briefExpandedProvider = StateProvider<bool>((ref) => false);
 
 enum GameOutcome { inProgress, solved, gaveUp }
 
+/// One line of an interrogation transcript. speaker is null for
+/// neutral/system lines (e.g. "You present: X."); audioUrl is null for
+/// lines with no narration (system lines, or narration that failed) --
+/// only lines with a non-null audioUrl get a replay button.
+class TranscriptLine {
+  final String? speaker;
+  final String text;
+  final String? audioUrl;
+  const TranscriptLine({this.speaker, required this.text, this.audioUrl});
+}
+
 class GameState {
   final int focus;
   final Set<String> interviewedSuspectIds;
@@ -42,6 +53,7 @@ class GameState {
   final Set<String> contradictionSuspectIds;
   final Set<String> ruledOutSuspectIds;
   final Map<String, int> factProgress;
+  final Map<String, List<TranscriptLine>> transcripts;
   final int accusationAttempts;
   final GameOutcome outcome;
 
@@ -53,6 +65,7 @@ class GameState {
     required this.contradictionSuspectIds,
     required this.ruledOutSuspectIds,
     required this.factProgress,
+    required this.transcripts,
     required this.accusationAttempts,
     required this.outcome,
   });
@@ -65,6 +78,7 @@ class GameState {
         contradictionSuspectIds: const {},
         ruledOutSuspectIds: const {},
         factProgress: const {},
+        transcripts: const {},
         accusationAttempts: 0,
         outcome: GameOutcome.inProgress,
       );
@@ -77,6 +91,7 @@ class GameState {
     Set<String>? contradictionSuspectIds,
     Set<String>? ruledOutSuspectIds,
     Map<String, int>? factProgress,
+    Map<String, List<TranscriptLine>>? transcripts,
     int? accusationAttempts,
     GameOutcome? outcome,
   }) {
@@ -88,6 +103,7 @@ class GameState {
       contradictionSuspectIds: contradictionSuspectIds ?? this.contradictionSuspectIds,
       ruledOutSuspectIds: ruledOutSuspectIds ?? this.ruledOutSuspectIds,
       factProgress: factProgress ?? this.factProgress,
+      transcripts: transcripts ?? this.transcripts,
       accusationAttempts: accusationAttempts ?? this.accusationAttempts,
       outcome: outcome ?? this.outcome,
     );
@@ -112,6 +128,14 @@ class GameStateNotifier extends Notifier<GameState> {
   void interview(String suspectId) {
     if (state.interviewedSuspectIds.contains(suspectId)) return;
     state = state.copyWith(interviewedSuspectIds: {...state.interviewedSuspectIds, suspectId});
+  }
+
+  /// Appends one line to a suspect's interrogation transcript so it
+  /// survives navigating away and back -- re-opening a suspect shows their
+  /// full conversation so far, not a blank screen.
+  void appendTranscriptLine(String suspectId, TranscriptLine line) {
+    final existing = state.transcripts[suspectId] ?? const <TranscriptLine>[];
+    state = state.copyWith(transcripts: {...state.transcripts, suspectId: [...existing, line]});
   }
 
   /// Returns the next not-yet-revealed fact for this suspect/category, or

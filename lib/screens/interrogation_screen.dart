@@ -9,12 +9,6 @@ import '../onboarding/coachmark_overlay.dart';
 import '../onboarding/onboarding_prefs.dart';
 import '../truth_engine/models.dart';
 
-class _TranscriptLine {
-  final String? speaker; // null = neutral/system line
-  final String text;
-  const _TranscriptLine({this.speaker, required this.text});
-}
-
 class InterrogationScreen extends ConsumerStatefulWidget {
   final String suspectId;
   const InterrogationScreen({super.key, required this.suspectId});
@@ -24,7 +18,6 @@ class InterrogationScreen extends ConsumerStatefulWidget {
 }
 
 class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
-  final List<_TranscriptLine> _lines = [];
   final ScrollController _scroll = ScrollController();
   final AudioPlayer _player = AudioPlayer();
   final _categoriesKey = GlobalKey();
@@ -70,9 +63,23 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
     });
   }
 
+  void _appendLine(TranscriptLine line) {
+    ref.read(gameStateProvider.notifier).appendTranscriptLine(widget.suspectId, line);
+    _scrollToBottom();
+  }
+
   Future<void> _openInterview() async {
+    // Re-opening a suspect already interviewed shows their existing
+    // transcript (persisted in GameState) rather than starting blank --
+    // jump straight to the bottom of it.
+    final alreadyHadLines =
+        (ref.read(gameStateProvider).transcripts[widget.suspectId] ?? const []).isNotEmpty;
     final fact = ref.read(conversationEngineProvider).openInterview(widget.suspectId);
-    if (fact != null) await _sayFact(fact, category: 'introduction');
+    if (fact != null) {
+      await _sayFact(fact, category: 'introduction');
+    } else if (alreadyHadLines) {
+      _scrollToBottom();
+    }
   }
 
   Future<void> _sayFact(Fact fact, {required String category}) async {
@@ -94,18 +101,17 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
       // raw fact text if phrasing/narration fails for any reason.
     }
     if (!mounted) return;
-    setState(() {
-      _lines.add(_TranscriptLine(speaker: _suspect.name, text: text));
-      _loading = false;
-    });
-    _scrollToBottom();
-    if (audioUrl != null) {
-      try {
-        await _player.setUrl(audioUrl);
-        await _player.play();
-      } catch (_) {
-        // Silent fallback -- the text is already shown either way.
-      }
+    setState(() => _loading = false);
+    _appendLine(TranscriptLine(speaker: _suspect.name, text: text, audioUrl: audioUrl));
+    if (audioUrl != null) await _playAudioUrl(audioUrl);
+  }
+
+  Future<void> _playAudioUrl(String url) async {
+    try {
+      await _player.setUrl(url);
+      await _player.play();
+    } catch (_) {
+      // Silent fallback -- the text is already shown either way.
     }
   }
 
@@ -113,8 +119,7 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
     if (_loading) return;
     final fact = ref.read(conversationEngineProvider).askCategory(widget.suspectId, category);
     if (fact == null) {
-      setState(() => _lines.add(const _TranscriptLine(text: "They've said everything they're going to on that.")));
-      _scrollToBottom();
+      _appendLine(const TranscriptLine(text: "They've said everything they're going to on that."));
       return;
     }
     await _sayFact(fact, category: category.name);
@@ -122,12 +127,10 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
 
   Future<void> _presentEvidence(Evidence evidence) async {
     if (_loading) return;
-    setState(() => _lines.add(_TranscriptLine(text: 'You present: ${evidence.label}.')));
-    _scrollToBottom();
+    _appendLine(TranscriptLine(text: 'You present: ${evidence.label}.'));
     final reaction = ref.read(conversationEngineProvider).presentEvidence(widget.suspectId, evidence.id);
     if (reaction == null) {
-      setState(() => _lines.add(const _TranscriptLine(text: "They don't have much to say about that.")));
-      _scrollToBottom();
+      _appendLine(const TranscriptLine(text: "They don't have much to say about that."));
       return;
     }
     await _sayFact(Fact(id: reaction.id, text: reaction.text, isLie: reaction.isLie), category: 'evidence');
@@ -172,7 +175,8 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
   @override
   Widget build(BuildContext context) {
     final engine = ref.read(conversationEngineProvider);
-    ref.watch(gameStateProvider); // rebuild when focus/progress/evidence changes
+    final gameState = ref.watch(gameStateProvider); // rebuild when focus/progress/evidence/transcript changes
+    final lines = gameState.transcripts[widget.suspectId] ?? const <TranscriptLine>[];
 
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -195,9 +199,9 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
             child: ListView.builder(
               controller: _scroll,
               padding: const EdgeInsets.all(16),
-              itemCount: _lines.length,
+              itemCount: lines.length,
               itemBuilder: (context, i) {
-                final line = _lines[i];
+                final line = lines[i];
                 final isSystem = line.speaker == null;
                 if (isSystem) {
                   return Padding(
@@ -221,7 +225,24 @@ class _InterrogationScreenState extends ConsumerState<InterrogationScreen> {
                       color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(line.text),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(child: Text(line.text)),
+                        if (line.audioUrl != null) ...[
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => _playAudioUrl(line.audioUrl!),
+                            borderRadius: BorderRadius.circular(16),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(Icons.replay_circle_filled, size: 20, color: Colors.white54),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 );
               },
