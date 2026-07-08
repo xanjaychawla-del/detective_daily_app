@@ -178,6 +178,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentTier = ref.watch(userTierProvider).valueOrNull;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Register')),
       body: SafeArea(
@@ -209,8 +211,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               priceLabel: 'Free forever',
               blurb: '1 new case per day, plus every case already in your list.',
               busy: _registering,
+              isCurrentPlan: currentTier == UserTier.free,
               onTap: _pickRegistrationMethod,
-              ctaLabel: 'Register Now',
               highlight: true,
             ),
             const SizedBox(height: 12),
@@ -221,8 +223,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               showLaunchOffer: true,
               blurb: '3 new cases per day.',
               busy: false,
+              isCurrentPlan: currentTier == UserTier.lite,
               onTap: () => _showNotYetAvailable(UserTier.lite, 'Lite'),
-              ctaLabel: 'Select Lite',
             ),
             const SizedBox(height: 12),
             _TierCard(
@@ -232,8 +234,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               showLaunchOffer: true,
               blurb: 'Unlimited new cases, anytime.',
               busy: false,
+              isCurrentPlan: currentTier == UserTier.premium,
               onTap: () => _showNotYetAvailable(UserTier.premium, 'Premium'),
-              ctaLabel: 'Select Premium',
             ),
             const SizedBox(height: 24),
             Text('Compare plans', style: Theme.of(context).textTheme.titleMedium),
@@ -256,7 +258,7 @@ class _TierCard extends StatelessWidget {
   final bool busy;
   final bool highlight;
   final bool showLaunchOffer;
-  final String ctaLabel;
+  final bool isCurrentPlan;
   final VoidCallback onTap;
 
   const _TierCard({
@@ -265,7 +267,7 @@ class _TierCard extends StatelessWidget {
     required this.priceLabel,
     required this.blurb,
     required this.busy,
-    required this.ctaLabel,
+    required this.isCurrentPlan,
     required this.onTap,
     this.highlight = false,
     this.showLaunchOffer = false,
@@ -329,14 +331,18 @@ class _TierCard extends StatelessWidget {
             SizedBox(
               width: 140,
               child: FilledButton(
-                onPressed: busy ? null : onTap,
+                onPressed: (busy || isCurrentPlan) ? null : onTap,
                 child: busy
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Text(ctaLabel, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+                    : Text(
+                        isCurrentPlan ? 'Current Plan' : 'Update Plan',
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
               ),
             ),
           ],

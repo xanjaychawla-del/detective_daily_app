@@ -223,7 +223,7 @@ class _CaseListScreenState extends ConsumerState<CaseListScreen>
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const RegistrationScreen()),
               ),
-              child: const Text('Register'),
+              child: const Text('Login'),
             ),
         ],
         bottom: TabBar(
