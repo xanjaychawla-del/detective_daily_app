@@ -86,6 +86,8 @@ Deno.serve(async (req: Request) => {
   const category = body?.category;
   const persona = body?.persona;
   const suspectName = body?.suspectName;
+  const country = body?.country;
+  const sex = body?.sex;
 
   if (
     typeof caseId !== "string" || typeof suspectId !== "string" || typeof factId !== "string" ||
@@ -122,7 +124,11 @@ Deno.serve(async (req: Request) => {
 
   let audioBytes: Uint8Array;
   try {
-    audioBytes = await synthesizeSpeech(googleTtsApiKey, phrasedText, pickSuspectVoice(suspectId));
+    audioBytes = await synthesizeSpeech(
+      googleTtsApiKey,
+      phrasedText,
+      pickSuspectVoice(suspectId, typeof country === "string" ? country : undefined, typeof sex === "string" ? sex : undefined),
+    );
   } catch (err) {
     console.error("Google TTS call failed:", (err as Error)?.message ?? err);
     return jsonResponse({ error: "tts_failed" }, 502);

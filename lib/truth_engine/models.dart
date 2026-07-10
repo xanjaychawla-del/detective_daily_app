@@ -113,6 +113,17 @@ class Suspect {
   final BackgroundCheckResult backgroundCheck;
   final InitialLie? initialLie;
 
+  // Demographic profile -- drives which narration voice this suspect gets
+  // (see supabase/functions/_shared/google-tts.ts's country/sex-based
+  // voice pools) as well as being flavor for future roster UI. age/country
+  // fall back to 0/'' for older case rows generated before this field
+  // existed rather than failing to parse.
+  final int age;
+  final String sex;
+  final String gender;
+  final String ethnicity;
+  final String country;
+
   const Suspect({
     required this.id,
     required this.name,
@@ -121,6 +132,11 @@ class Suspect {
     required this.facts,
     required this.backgroundCheck,
     this.initialLie,
+    this.age = 0,
+    this.sex = '',
+    this.gender = '',
+    this.ethnicity = '',
+    this.country = '',
   });
 
   factory Suspect.fromJson(Map<String, dynamic> json) => Suspect(
@@ -132,6 +148,11 @@ class Suspect {
         backgroundCheck: BackgroundCheckResult.fromJson(json['backgroundCheck'] as Map<String, dynamic>),
         initialLie:
             json['initialLie'] == null ? null : InitialLie.fromJson(json['initialLie'] as Map<String, dynamic>),
+        age: json['age'] as int? ?? 0,
+        sex: json['sex'] as String? ?? '',
+        gender: json['gender'] as String? ?? '',
+        ethnicity: json['ethnicity'] as String? ?? '',
+        country: json['country'] as String? ?? '',
       );
 }
 

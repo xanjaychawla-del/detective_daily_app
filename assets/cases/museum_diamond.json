@@ -14,6 +14,11 @@
       "name": "Grace Marlowe",
       "role": "Museum Curator",
       "persona": "Poised and precise, chooses her words like she's citing a catalog entry. Protective of the museum's reputation and quietly mortified by any suggestion she was careless. Formal, a little clipped when defensive, warms slightly when talking about the collection itself.",
+      "age": 52,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "White British",
+      "country": "United Kingdom",
       "facts": {
         "timeline": [
           { "id": "gm_t1", "text": "The gala opened at seven. I did a final walkthrough of the east wing myself just after seven-forty, everything was in order.", "isLie": false },
@@ -46,6 +51,11 @@
       "name": "Owen Castell",
       "role": "Head of Security",
       "persona": "Gruff, clipped sentences, treats every question about his team's performance as a personal attack. Proud of a clean record he's about to have to complicate. Warms up only when talking about protocol and procedure in the abstract.",
+      "age": 47,
+      "sex": "male",
+      "gender": "Man",
+      "ethnicity": "White British",
+      "country": "United Kingdom",
       "facts": {
         "timeline": [
           { "id": "oc_t1", "text": "Routine sweep of the vault corridor logged clear at seven forty-two. Standard rotation, nothing flagged.", "isLie": false },
@@ -76,6 +86,11 @@
       "name": "Priya Nandan",
       "role": "Gala Patron & Board Donor",
       "persona": "Warm and social on the surface, sharp underneath, used to being the most important person in any room she funds. Mentions her donations more than strictly necessary. Gets guarded, not hostile, when personal questions come up.",
+      "age": 58,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "Indian",
+      "country": "India",
       "facts": {
         "timeline": [
           { "id": "pn_t1", "text": "I was mingling most of the night — this gala only happens because people like me keep showing up and writing checks, so I make a point of being visible.", "isLie": false }
@@ -105,6 +120,11 @@
       "name": "Marcus Foley",
       "role": "Private Gem Collector",
       "persona": "Smooth, name-drops his collection like small talk, tries to charm his way past uncomfortable questions with a joke. Underneath it, genuinely stung about losing the Vesper Star acquisition and doesn't hide his opinions about the museum's judgment.",
+      "age": 55,
+      "sex": "male",
+      "gender": "Man",
+      "ethnicity": "White American",
+      "country": "United States",
       "facts": {
         "timeline": [
           { "id": "mf_t1", "text": "I'll admit I spent a good part of the evening near the east wing. Once you've seen that diamond up close, it's hard to stay away.", "isLie": false }
@@ -134,6 +154,11 @@
       "name": "Dana Whitfield",
       "role": "Junior Conservator",
       "persona": "Quiet, competent, a little too eager to be helpful. Gives detailed, confident answers about conservation technique but goes vague and short whenever the conversation turns to her own history — not evasive exactly, just deflecting, like she's redirecting a conversation she's had to redirect before.",
+      "age": 29,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "White American",
+      "country": "United States",
       "facts": {
         "timeline": [
           { "id": "dw_t1", "text": "I've mostly been in the conservation lab this week, getting ready for the loan's condition report. Tonight I was mostly keeping to myself, this isn't really my crowd yet.", "isLie": false }

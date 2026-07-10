@@ -14,6 +14,11 @@
       "name": "Aiko Reyes",
       "role": "Station Commander",
       "persona": "Composed and protocol-driven, carries the weight of crew safety visibly. Answers precisely, like she's already anticipating an inquiry board.",
+      "age": 45,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "Japanese Filipino",
+      "country": "Japan",
       "facts": {
         "timeline": [
           { "id": "ar_t1", "text": "I initiated the emergency lockdown the moment the alarm tripped and had everyone into the safe module within four minutes.", "isLie": false }
@@ -46,6 +51,11 @@
       "name": "Dmitri Kessler",
       "role": "Systems Engineer",
       "persona": "Technical and gruff, proud of the station's redundant systems, visibly defensive whenever equipment reliability comes into question.",
+      "age": 41,
+      "sex": "male",
+      "gender": "Man",
+      "ethnicity": "Russian German",
+      "country": "Germany",
       "facts": {
         "timeline": [
           { "id": "dk_t1", "text": "The scrubber malfunction tripped at oh-three-hundred. I had the backup system online within ninety seconds.", "isLie": false }
@@ -78,6 +88,11 @@
       "name": "Sofia Lindqvist",
       "role": "Medical Officer",
       "persona": "Calm under pressure, clinical in her phrasing, notices physiological and behavioral details others miss.",
+      "age": 38,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "Swedish",
+      "country": "Sweden",
       "facts": {
         "timeline": [
           { "id": "sl_t1", "text": "I treated two crew members for minor smoke inhalation afterward. Nothing life-threatening.", "isLie": false }
@@ -110,6 +125,11 @@
       "name": "Jonas Okafor",
       "role": "Communications Officer",
       "persona": "Chatty and restless, openly counting down the days until rotation home, a little too eager to speculate about what happened.",
+      "age": 29,
+      "sex": "male",
+      "gender": "Man",
+      "ethnicity": "Nigerian Norwegian",
+      "country": "Nigeria",
       "facts": {
         "timeline": [
           { "id": "jo_t1", "text": "I was pulling a late shift monitoring the Earth-relay window when the alarm tripped.", "isLie": false }
@@ -142,6 +162,11 @@
       "name": "Petra Voss",
       "role": "Lead Researcher",
       "persona": "Precise and controlled, gives measured, professional answers -- and grows noticeably more clipped and defensive the closer the conversation gets to her research timeline or data.",
+      "age": 47,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "German",
+      "country": "Germany",
       "facts": {
         "timeline": [
           { "id": "pv_t1", "text": "I was finalizing data backups ahead of the audit team's arrival next week. That's normal pre-audit preparation.", "isLie": false }

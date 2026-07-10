@@ -14,6 +14,11 @@
       "name": "Priya Sethi",
       "role": "Business Consultant",
       "persona": "Brisk and efficient, mildly impatient about the disruption to her schedule. Warms up noticeably when the conversation turns to her actual work.",
+      "age": 34,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "Indian",
+      "country": "India",
       "facts": {
         "timeline": [
           { "id": "ps_t1", "text": "I boarded with everyone else, took my seat in 2B, and spent most of the flight finishing a deck on my laptop.", "isLie": false }
@@ -46,6 +51,11 @@
       "name": "Marcus Yeun",
       "role": "Flight Attendant",
       "persona": "Professional and clipped, protective of cabin procedure, visibly anxious about liability and his certification.",
+      "age": 31,
+      "sex": "male",
+      "gender": "Man",
+      "ethnicity": "Korean American",
+      "country": "United States",
       "facts": {
         "timeline": [
           { "id": "my_t1", "text": "Drink service ran normally through business class between the first and second hour. Nothing unusual until Mr. Pryce's collapse.", "isLie": false }
@@ -78,6 +88,11 @@
       "name": "Diane Cho",
       "role": "Retired Professor",
       "persona": "Sharp and observant, a little imperious, clearly enjoys being the one who notices things -- but guarded about her own reasons for traveling.",
+      "age": 68,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "Korean American",
+      "country": "United States",
       "facts": {
         "timeline": [
           { "id": "dc_t1", "text": "I was seated across the aisle from Mr. Pryce, in 2D. Quiet flight, right up until the commotion.", "isLie": false }
@@ -110,6 +125,11 @@
       "name": "Felix Adeyemi",
       "role": "Startup Founder",
       "persona": "Energetic and a little combative, quick to justify himself, clearly still bitter about a public dispute he'd rather not relitigate.",
+      "age": 33,
+      "sex": "male",
+      "gender": "Man",
+      "ethnicity": "Nigerian",
+      "country": "Nigeria",
       "facts": {
         "timeline": [
           { "id": "fa_t1", "text": "I was seated a few rows back in 4A, nowhere near him for most of the flight.", "isLie": false }
@@ -142,6 +162,11 @@
       "name": "Renee Castillo",
       "role": "Marketing Director",
       "persona": "Composed and pleasant, gives short, slightly rehearsed-sounding answers. Becomes noticeably more careful and clipped whenever the conversation drifts toward Elliot Pryce specifically.",
+      "age": 44,
+      "sex": "female",
+      "gender": "Woman",
+      "ethnicity": "Latina American",
+      "country": "United States",
       "facts": {
         "timeline": [
           { "id": "rc_t1", "text": "I was seated in 2A, by the window. I kept to myself with a book for most of the flight.", "isLie": false }

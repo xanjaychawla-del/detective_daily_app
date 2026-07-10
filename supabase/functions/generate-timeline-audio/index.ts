@@ -17,7 +17,7 @@
 // Deploy with --no-verify-jwt, matching the rest of this project's functions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { INSPECTOR_VOICE, synthesizeSpeech } from "../_shared/google-tts.ts";
+import { hashSum, pickInspectorVoice, synthesizeSpeech } from "../_shared/google-tts.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -66,13 +66,40 @@ ${factSheet}
   return callGemini(apiKey, systemPrompt, "Narrate the confirmed events above now.");
 }
 
-async function phraseSuspectClaims(apiKey: string, suspectName: string, factSheet: string): Promise<string> {
+// Each suspect's segment is generated (and cached) independently, so
+// without a nudge Gemini converges on the same "According to X..." opener
+// every time -- fine for one suspect, monotonous once the player's
+// interviewed several and the segments play back to back. Deterministically
+// assigning each suspect a different framing style (by hashing their id)
+// keeps a given suspect's phrasing stable for caching while spreading
+// distinct suspects across different openers within the same case.
+const CLAIM_FRAMING_STYLES = [
+  "Open by naming them as the one speaking, e.g. \"{name} told the detective...\" or \"{name} says...\" -- do not use the phrase \"according to\".",
+  "Open with \"According to {name}, ...\"",
+  "Lead with what happened and attribute it partway through or at the end, e.g. \"...or so {name} claims.\" or \"That's the account {name} gave.\"",
+  "Open with \"When questioned, {name} said...\" or \"{name} maintains that...\"",
+  "Open with \"{name}'s version: ...\" or \"By {name}'s account, ...\"",
+  "Open with \"For {name}'s part, ...\" or \"As for {name}, ...\"",
+];
+
+function pickClaimFramingStyle(suspectId: string, suspectName: string): string {
+  const style = CLAIM_FRAMING_STYLES[hashSum(suspectId) % CLAIM_FRAMING_STYLES.length];
+  return style.replaceAll("{name}", suspectName);
+}
+
+async function phraseSuspectClaims(
+  apiKey: string,
+  suspectId: string,
+  suspectName: string,
+  factSheet: string,
+): Promise<string> {
   const systemPrompt =
     `You are a detective's assistant narrating what one suspect, ${suspectName}, told the detective during questioning, out loud for the player.
 
 STRICT RULES:
 - Use ONLY the claims given below. Do not invent, omit, or reorder claims, and do not change any times.
-- This is ${suspectName}'s claim, not a verified fact -- make that clear throughout (e.g. "According to ${suspectName}..." or "${suspectName} claims..."). Never state it as established truth.
+- This is ${suspectName}'s claim, not a verified fact -- make that unmistakably clear. Never state it as established truth.
+- Framing for this suspect specifically: ${pickClaimFramingStyle(suspectId, suspectName)}
 - Do not draw conclusions, accuse anyone, or speculate about whether ${suspectName} is telling the truth -- just report what they said.
 - Write it as natural, flowing spoken narration (not a bullet list or a recitation of times), 1-3 sentences, as if briefing a detective.
 - No stage directions, no headers, no quotation marks -- just the narration text itself.
@@ -181,7 +208,7 @@ Deno.serve(async (req: Request) => {
         const suspect = suspects.find((s) => s.id === segmentKey);
         const entries = timeline.filter((e) => e.type === "claimed" && e.suspectId === segmentKey);
         if (!suspect || entries.length === 0) return jsonResponse({ error: "no_entries_for_segment" }, 404);
-        script = await phraseSuspectClaims(geminiApiKey, suspect.name, buildFactSheet(entries));
+        script = await phraseSuspectClaims(geminiApiKey, suspect.id, suspect.name, buildFactSheet(entries));
       }
     } catch (err) {
       console.error("Gemini phrasing failed:", (err as Error)?.message ?? err);
@@ -191,7 +218,7 @@ Deno.serve(async (req: Request) => {
 
   let audioBytes: Uint8Array;
   try {
-    audioBytes = await synthesizeSpeech(googleTtsApiKey, script, INSPECTOR_VOICE);
+    audioBytes = await synthesizeSpeech(googleTtsApiKey, script, pickInspectorVoice(caseId));
   } catch (err) {
     console.error("Google TTS call failed:", (err as Error)?.message ?? err);
     return jsonResponse({ error: "tts_failed" }, 502);

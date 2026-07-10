@@ -10,35 +10,12 @@
 // Deploy with --no-verify-jwt, matching narrate/generate-case.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { INSPECTOR_VOICE, synthesizeSpeech } from "../_shared/google-tts.ts";
+import { pickInspectorName, pickInspectorVoice, synthesizeSpeech } from "../_shared/google-tts.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Mirrors lib/screens/incoming_call_overlay.dart's _kInspectorNames and
-// hash exactly, so the name spoken in the cached audio always matches the
-// name shown on screen for the same case id. A simple char-code sum is
-// used (not Dart's String.hashCode, which Deno/JS can't reproduce).
-const INSPECTOR_NAMES = [
-  "Reyes",
-  "Okafor",
-  "Chen",
-  "Whitfield",
-  "Alvarez",
-  "Novak",
-  "Sato",
-  "Bianchi",
-  "Kowalski",
-  "Adebayo",
-];
-
-function pickInspectorName(caseId: string): string {
-  let sum = 0;
-  for (let i = 0; i < caseId.length; i++) sum += caseId.charCodeAt(i);
-  return INSPECTOR_NAMES[sum % INSPECTOR_NAMES.length];
-}
 
 function jsonResponse(body: Record<string, unknown>, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -90,7 +67,7 @@ Deno.serve(async (req: Request) => {
 
   let audioBytes: Uint8Array;
   try {
-    audioBytes = await synthesizeSpeech(googleTtsApiKey, script, INSPECTOR_VOICE);
+    audioBytes = await synthesizeSpeech(googleTtsApiKey, script, pickInspectorVoice(caseId));
   } catch (err) {
     console.error("Google TTS call failed:", (err as Error)?.message ?? err);
     return jsonResponse({ error: "tts_failed" }, 502);

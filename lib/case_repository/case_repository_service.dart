@@ -118,6 +118,8 @@ class CaseRepositoryService {
         'category': category,
         'persona': suspect.persona,
         'suspectName': suspect.name,
+        'country': suspect.country,
+        'sex': suspect.sex,
       },
     );
     final data = response.data;
