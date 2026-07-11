@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../billing/billing_providers.dart';
+import '../billing/billing_service.dart';
 import '../core/theme.dart';
 import '../tier/tier_providers.dart';
 import '../tier/tier_service.dart';
@@ -26,6 +29,7 @@ class RegistrationScreen extends ConsumerStatefulWidget {
 class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool _registering = false;
   bool _deletingAccount = false;
+  final Set<UserTier> _purchasingTiers = {};
   StreamSubscription<AuthState>? _authSub;
 
   @override
@@ -201,26 +205,57 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
   }
 
-  void _showNotYetAvailable(UserTier tier, String tierName) {
-    ref.read(tierGateServiceProvider).logTierInterest(tier);
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(tierName),
-        content: Text(
-          "Detective Daily $tierName isn't active yet -- we'll let you know the moment it launches. "
-          'Register for Free for now to keep investigating.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Got it')),
-        ],
-      ),
-    );
+  /// Kicks off Play's purchase sheet for [tier]/[productId]. The tier is
+  /// only ever granted asynchronously, once the app-root PurchaseListener
+  /// hears back from Play and the server verifies the purchase -- this
+  /// method just starts that flow and reports whether it *could* be
+  /// started.
+  Future<void> _purchaseTier(UserTier tier, String productId) async {
+    final billing = ref.read(billingServiceProvider);
+    if (!await billing.isAvailable()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Play Store billing is not available on this device.')),
+        );
+      }
+      return;
+    }
+
+    final products = ref.read(subscriptionProductsProvider).valueOrNull ?? const [];
+    ProductDetails? product;
+    for (final candidate in products) {
+      if (candidate.id == productId) {
+        product = candidate;
+        break;
+      }
+    }
+    if (product == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This plan is not available for purchase yet. Please try again soon.')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _purchasingTiers.add(tier));
+    try {
+      await billing.buy(product);
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not start purchase: $err')));
+      }
+    } finally {
+      if (mounted) setState(() => _purchasingTiers.remove(tier));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentTier = ref.watch(userTierProvider).valueOrNull;
+    // Watched (not just read) so the products load as soon as this screen
+    // opens, ready by the time a Lite/Premium card is tapped.
+    ref.watch(subscriptionProductsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Register')),
@@ -249,7 +284,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             const SizedBox(height: 16),
             _TierCard(
               name: 'Free',
-              price: '',
               priceLabel: 'Free forever',
               blurb: '1 new case per day, plus every case already in your list.',
               busy: _registering,
@@ -260,31 +294,25 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             const SizedBox(height: 12),
             _TierCard(
               name: 'Detective Daily · Lite',
-              price: '₹199',
               priceLabel: '₹10/mo',
-              showLaunchOffer: true,
               blurb: '3 new cases per day.',
-              busy: false,
+              busy: _purchasingTiers.contains(UserTier.lite),
               isCurrentPlan: currentTier == UserTier.lite,
-              onTap: () => _showNotYetAvailable(UserTier.lite, 'Lite'),
+              onTap: () => _purchaseTier(UserTier.lite, kLiteMonthlyProductId),
             ),
             const SizedBox(height: 12),
             _TierCard(
               name: 'Detective Daily · Premium',
-              price: '₹299',
               priceLabel: '₹20/mo',
-              showLaunchOffer: true,
               blurb: 'Unlimited new cases, anytime.',
-              busy: false,
+              busy: _purchasingTiers.contains(UserTier.premium),
               isCurrentPlan: currentTier == UserTier.premium,
-              onTap: () => _showNotYetAvailable(UserTier.premium, 'Premium'),
+              onTap: () => _purchaseTier(UserTier.premium, kPremiumMonthlyProductId),
             ),
             const SizedBox(height: 24),
             Text('Compare plans', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const _ComparisonTable(),
-            const SizedBox(height: 6),
-            const Text('* Launch offer pricing', style: TextStyle(color: Colors.white38, fontSize: 11)),
             if (currentTier != null) ...[
               const SizedBox(height: 32),
               const Divider(color: Colors.white24),
@@ -312,25 +340,21 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
 class _TierCard extends StatelessWidget {
   final String name;
-  final String price;
   final String priceLabel;
   final String blurb;
   final bool busy;
   final bool highlight;
-  final bool showLaunchOffer;
   final bool isCurrentPlan;
   final VoidCallback onTap;
 
   const _TierCard({
     required this.name,
-    required this.price,
     required this.priceLabel,
     required this.blurb,
     required this.busy,
     required this.isCurrentPlan,
     required this.onTap,
     this.highlight = false,
-    this.showLaunchOffer = false,
   });
 
   @override
@@ -349,38 +373,10 @@ class _TierCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
-                  if (showLaunchOffer) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: kAccentAmber.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'LAUNCH OFFER',
-                        style: TextStyle(color: kAccentAmber, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (price.isNotEmpty) ...[
-                        Text(
-                          price,
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(
-                        priceLabel,
-                        style: const TextStyle(color: kAccentAmber, fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                  Text(
+                    priceLabel,
+                    style: const TextStyle(color: kAccentAmber, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 6),
                   Text(blurb, style: const TextStyle(color: Colors.white60)),
@@ -420,7 +416,7 @@ class _ComparisonTable extends StatelessWidget {
     const rows = [
       ('New cases / day', '1', '3', 'Unlimited'),
       ('Get New Case anytime', 'No', 'No', 'Yes'),
-      ('Price', 'Free', '₹10/mo*', '₹20/mo*'),
+      ('Price', 'Free', '₹10/mo', '₹20/mo'),
     ];
     return Container(
       decoration: BoxDecoration(

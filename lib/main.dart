@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'billing/purchase_listener.dart';
 import 'core/env.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
@@ -56,11 +57,37 @@ Future<void> main() async {
   );
 }
 
-class DetectiveDailyApp extends StatelessWidget {
+class DetectiveDailyApp extends ConsumerStatefulWidget {
   final bool firebaseAvailable;
   final String? bootstrapError;
 
   const DetectiveDailyApp({super.key, required this.firebaseAvailable, this.bootstrapError});
+
+  @override
+  ConsumerState<DetectiveDailyApp> createState() => _DetectiveDailyAppState();
+}
+
+class _DetectiveDailyAppState extends ConsumerState<DetectiveDailyApp> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  PurchaseListener? _purchaseListener;
+
+  @override
+  void initState() {
+    super.initState();
+    // Subscribed here, at the app root, rather than from any one screen --
+    // see PurchaseListener's doc comment for why that matters (a purchase
+    // can be redelivered on a fresh launch, independent of which screen is
+    // showing). Only meaningful once Supabase actually initialized.
+    if (widget.bootstrapError == null) {
+      _purchaseListener = PurchaseListener(ref, _messengerKey)..start();
+    }
+  }
+
+  @override
+  void dispose() {
+    _purchaseListener?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +95,11 @@ class DetectiveDailyApp extends StatelessWidget {
       title: 'Detective Daily',
       debugShowCheckedModeBanner: false,
       theme: buildDetectiveDailyTheme(),
+      scaffoldMessengerKey: _messengerKey,
       navigatorObservers: [
-        if (firebaseAvailable) FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+        if (widget.firebaseAvailable) FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
       ],
-      home: bootstrapError == null
+      home: widget.bootstrapError == null
           ? const LoadingScreen()
           : Scaffold(
               backgroundColor: Colors.black,
@@ -79,7 +107,7 @@ class DetectiveDailyApp extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    bootstrapError!,
+                    widget.bootstrapError!,
                     style: const TextStyle(color: Colors.white),
                     textAlign: TextAlign.center,
                   ),

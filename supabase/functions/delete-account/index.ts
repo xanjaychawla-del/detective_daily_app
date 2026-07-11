@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  const tablesToClear = ["case_ratings", "plays", "profiles", "tier_interest"];
+  const tablesToClear = ["case_ratings", "plays", "profiles", "tier_interest", "subscriptions"];
   for (const table of tablesToClear) {
     const { error } = await admin.from(table).delete().eq("user_id", userId);
     if (error) {
