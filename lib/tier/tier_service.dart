@@ -108,4 +108,19 @@ class TierGateService {
       emailRedirectTo: 'io.supabase.detectivedaily://login-callback',
     );
   }
+
+  /// Permanently deletes the signed-in user's account and all owned data
+  /// (profile, plays, tier interest) via the delete-account Edge Function,
+  /// then signs out locally (which drops back to a fresh anonymous
+  /// session on next launch). There is no undo -- the caller is
+  /// responsible for confirming with the user first.
+  Future<void> deleteAccount() async {
+    final response = await _client.functions.invoke('delete-account');
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      final error = data is Map ? data['error'] : 'unknown_error';
+      throw Exception('Account deletion failed: $error');
+    }
+    await _client.auth.signOut();
+  }
 }

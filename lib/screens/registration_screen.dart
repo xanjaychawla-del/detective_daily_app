@@ -25,6 +25,7 @@ class RegistrationScreen extends ConsumerStatefulWidget {
 
 class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool _registering = false;
+  bool _deletingAccount = false;
   StreamSubscription<AuthState>? _authSub;
 
   @override
@@ -159,6 +160,47 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your account, solved-case history, ratings, and plan. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deletingAccount = true);
+    try {
+      await ref.read(tierGateServiceProvider).deleteAccount();
+      if (!mounted) return;
+      ref.invalidate(userTierProvider);
+      ref.invalidate(guestSolvedCountProvider);
+      Navigator.of(context).pop();
+    } catch (err) {
+      if (mounted) {
+        setState(() => _deletingAccount = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete account. Please try again.')),
+        );
+      }
+    }
+  }
+
   void _showNotYetAvailable(UserTier tier, String tierName) {
     ref.read(tierGateServiceProvider).logTierInterest(tier);
     showDialog<void>(
@@ -243,6 +285,24 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             const _ComparisonTable(),
             const SizedBox(height: 6),
             const Text('* Launch offer pricing', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            if (currentTier != null) ...[
+              const SizedBox(height: 32),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: _deletingAccount ? null : _confirmDeleteAccount,
+                  style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                  child: _deletingAccount
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Delete account'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

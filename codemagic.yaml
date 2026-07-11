@@ -28,11 +28,11 @@ workflows:
           flutter build ios --release --no-codesign \
             --dart-define=SUPABASE_URL=$SUPABASE_URL \
             --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
-      - name: Build Android APK
+      - name: Build Android App Bundle
         script: |
-          flutter build apk --release \
+          flutter build appbundle --release \
             --dart-define=SUPABASE_URL=$SUPABASE_URL \
             --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
     artifacts:
       - build/ios/iphoneos/*.app
-      - build/app/outputs/**/*.apk
+      - build/app/outputs/**/*.aab
