@@ -2,12 +2,19 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Play Console product ids for the two monthly subscription tiers --
-/// these must match exactly what's created under Monetize > Products >
-/// Subscriptions.
+/// Play Console product ids for the two tiers, each sold as an
+/// independent monthly and annual subscription product -- these must
+/// match exactly what's created under Monetize > Products > Subscriptions.
 const kLiteMonthlyProductId = 'lite_monthly';
+const kLiteAnnualProductId = 'lite_annual';
 const kPremiumMonthlyProductId = 'premium_monthly';
-const kSubscriptionProductIds = {kLiteMonthlyProductId, kPremiumMonthlyProductId};
+const kPremiumAnnualProductId = 'premium_annual';
+const kSubscriptionProductIds = {
+  kLiteMonthlyProductId,
+  kLiteAnnualProductId,
+  kPremiumMonthlyProductId,
+  kPremiumAnnualProductId,
+};
 
 /// Wraps `in_app_purchase` for Detective Daily's two monthly subscriptions,
 /// mirroring TierGateService's shape (plain class over SupabaseClient).

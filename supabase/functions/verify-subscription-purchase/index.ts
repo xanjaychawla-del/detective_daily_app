@@ -17,7 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { acknowledgeSubscription, fetchSubscriptionV2, mintAccessToken } from "../_shared/google-play.ts";
 
 const PACKAGE_NAME = "com.detectivedaily.detective_daily_app";
-const VALID_PRODUCT_IDS = new Set(["lite_monthly", "premium_monthly"]);
+const VALID_PRODUCT_IDS = new Set(["lite_monthly", "lite_annual", "premium_monthly", "premium_annual"]);
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -118,7 +118,9 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "grant_failed", detail: rpcError.message }, 500);
     }
 
-    const tier = subscription.productId === "premium_monthly" ? "premium" : "lite";
+    const tier = subscription.productId === "premium_monthly" || subscription.productId === "premium_annual"
+      ? "premium"
+      : "lite";
     return jsonResponse(
       {
         ok: true,

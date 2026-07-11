@@ -13,6 +13,11 @@ import '../tier/tier_service.dart';
 
 enum _SignUpMethod { google, apple, facebook, email }
 
+/// Both tiers are sold as two independent Play Console subscription
+/// products per tier (e.g. lite_monthly / lite_annual) -- see
+/// BillingService's product id constants.
+enum _BillingPeriod { monthly, annual }
+
 /// Shown either proactively (a guest taps "Register" on Case Files) or as a
 /// forced prompt once a guest has used up their free cases. Free is the
 /// only tier that's actually selectable right now -- Lite/Premium show
@@ -30,6 +35,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool _registering = false;
   bool _deletingAccount = false;
   final Set<UserTier> _purchasingTiers = {};
+  _BillingPeriod _billingPeriod = _BillingPeriod.monthly;
   StreamSubscription<AuthState>? _authSub;
 
   @override
@@ -291,28 +297,67 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               onTap: _pickRegistrationMethod,
               highlight: true,
             ),
-            const SizedBox(height: 12),
-            _TierCard(
-              name: 'Detective Daily · Lite',
-              priceLabel: '₹10/mo',
-              blurb: '3 new cases per day.',
-              busy: _purchasingTiers.contains(UserTier.lite),
-              isCurrentPlan: currentTier == UserTier.lite,
-              onTap: () => _purchaseTier(UserTier.lite, kLiteMonthlyProductId),
+            const SizedBox(height: 16),
+            Center(
+              child: SegmentedButton<_BillingPeriod>(
+                segments: const [
+                  ButtonSegment(value: _BillingPeriod.monthly, label: Text('Monthly')),
+                  ButtonSegment(value: _BillingPeriod.annual, label: Text('Annual')),
+                ],
+                selected: {_billingPeriod},
+                onSelectionChanged: (selection) => setState(() => _billingPeriod = selection.first),
+              ),
             ),
             const SizedBox(height: 12),
-            _TierCard(
-              name: 'Detective Daily · Premium',
-              priceLabel: '₹20/mo',
-              blurb: 'Unlimited new cases, anytime.',
-              busy: _purchasingTiers.contains(UserTier.premium),
-              isCurrentPlan: currentTier == UserTier.premium,
-              onTap: () => _purchaseTier(UserTier.premium, kPremiumMonthlyProductId),
-            ),
+            if (_billingPeriod == _BillingPeriod.monthly) ...[
+              _TierCard(
+                name: 'Detective Daily · Lite',
+                priceLabel: '₹10/mo',
+                blurb: '3 new cases per day.',
+                busy: _purchasingTiers.contains(UserTier.lite),
+                isCurrentPlan: currentTier == UserTier.lite,
+                onTap: () => _purchaseTier(UserTier.lite, kLiteMonthlyProductId),
+              ),
+              const SizedBox(height: 12),
+              _TierCard(
+                name: 'Detective Daily · Premium',
+                priceLabel: '₹20/mo',
+                blurb: 'Unlimited new cases, anytime.',
+                busy: _purchasingTiers.contains(UserTier.premium),
+                isCurrentPlan: currentTier == UserTier.premium,
+                onTap: () => _purchaseTier(UserTier.premium, kPremiumMonthlyProductId),
+              ),
+            ] else ...[
+              _TierCard(
+                name: 'Detective Daily · Lite',
+                regularPrice: '₹2388/yr',
+                priceLabel: '₹120/yr',
+                showLaunchOffer: true,
+                blurb: '3 new cases per day.',
+                busy: _purchasingTiers.contains(UserTier.lite),
+                isCurrentPlan: currentTier == UserTier.lite,
+                onTap: () => _purchaseTier(UserTier.lite, kLiteAnnualProductId),
+              ),
+              const SizedBox(height: 12),
+              _TierCard(
+                name: 'Detective Daily · Premium',
+                regularPrice: '₹3588/yr',
+                priceLabel: '₹240/yr',
+                showLaunchOffer: true,
+                blurb: 'Unlimited new cases, anytime.',
+                busy: _purchasingTiers.contains(UserTier.premium),
+                isCurrentPlan: currentTier == UserTier.premium,
+                onTap: () => _purchaseTier(UserTier.premium, kPremiumAnnualProductId),
+              ),
+            ],
             const SizedBox(height: 24),
             Text('Compare plans', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            const _ComparisonTable(),
+            _ComparisonTable(billingPeriod: _billingPeriod),
+            if (_billingPeriod == _BillingPeriod.annual) ...[
+              const SizedBox(height: 6),
+              const Text('* Launch offer pricing', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            ],
             if (currentTier != null) ...[
               const SizedBox(height: 32),
               const Divider(color: Colors.white24),
@@ -347,6 +392,12 @@ class _TierCard extends StatelessWidget {
   final bool isCurrentPlan;
   final VoidCallback onTap;
 
+  /// Struck-through "regular" price shown alongside [priceLabel] when
+  /// [showLaunchOffer] is true -- e.g. the annual plans' undiscounted
+  /// yearly-equivalent of the monthly launch price.
+  final String? regularPrice;
+  final bool showLaunchOffer;
+
   const _TierCard({
     required this.name,
     required this.priceLabel,
@@ -355,6 +406,8 @@ class _TierCard extends StatelessWidget {
     required this.isCurrentPlan,
     required this.onTap,
     this.highlight = false,
+    this.regularPrice,
+    this.showLaunchOffer = false,
   });
 
   @override
@@ -373,10 +426,35 @@ class _TierCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
+                  if (showLaunchOffer) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: kAccentAmber.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'LAUNCH OFFER',
+                        style: TextStyle(color: kAccentAmber, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
-                  Text(
-                    priceLabel,
-                    style: const TextStyle(color: kAccentAmber, fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      if (regularPrice != null) ...[
+                        Text(
+                          regularPrice!,
+                          style: const TextStyle(color: Colors.white38, decoration: TextDecoration.lineThrough),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        priceLabel,
+                        style: const TextStyle(color: kAccentAmber, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Text(blurb, style: const TextStyle(color: Colors.white60)),
@@ -409,14 +487,19 @@ class _TierCard extends StatelessWidget {
 }
 
 class _ComparisonTable extends StatelessWidget {
-  const _ComparisonTable();
+  const _ComparisonTable({required this.billingPeriod});
+
+  final _BillingPeriod billingPeriod;
 
   @override
   Widget build(BuildContext context) {
-    const rows = [
+    final priceRow = billingPeriod == _BillingPeriod.monthly
+        ? ('Price', 'Free', '₹10/mo', '₹20/mo')
+        : ('Price', 'Free', '₹120/yr*', '₹240/yr*');
+    final rows = [
       ('New cases / day', '1', '3', 'Unlimited'),
       ('Get New Case anytime', 'No', 'No', 'Yes'),
-      ('Price', 'Free', '₹10/mo', '₹20/mo'),
+      priceRow,
     ];
     return Container(
       decoration: BoxDecoration(
