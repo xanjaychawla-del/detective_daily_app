@@ -312,7 +312,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             if (_billingPeriod == _BillingPeriod.monthly) ...[
               _TierCard(
                 name: 'Detective Daily · Lite',
-                priceLabel: '₹10/mo',
+                priceLabel: '₹49/mo',
                 blurb: '3 new cases per day.',
                 busy: _purchasingTiers.contains(UserTier.lite),
                 isCurrentPlan: currentTier == UserTier.lite,
@@ -321,7 +321,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               const SizedBox(height: 12),
               _TierCard(
                 name: 'Detective Daily · Premium',
-                priceLabel: '₹20/mo',
+                priceLabel: '₹99/mo',
                 blurb: 'Unlimited new cases, anytime.',
                 busy: _purchasingTiers.contains(UserTier.premium),
                 isCurrentPlan: currentTier == UserTier.premium,
@@ -330,9 +330,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ] else ...[
               _TierCard(
                 name: 'Detective Daily · Lite',
-                regularPrice: '₹2388/yr',
-                priceLabel: '₹120/yr',
-                showLaunchOffer: true,
+                regularPrice: '₹588/yr',
+                priceLabel: '₹499/yr',
+                showAnnualSavings: true,
                 blurb: '3 new cases per day.',
                 busy: _purchasingTiers.contains(UserTier.lite),
                 isCurrentPlan: currentTier == UserTier.lite,
@@ -341,9 +341,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               const SizedBox(height: 12),
               _TierCard(
                 name: 'Detective Daily · Premium',
-                regularPrice: '₹3588/yr',
-                priceLabel: '₹240/yr',
-                showLaunchOffer: true,
+                regularPrice: '₹1188/yr',
+                priceLabel: '₹990/yr',
+                showAnnualSavings: true,
                 blurb: 'Unlimited new cases, anytime.',
                 busy: _purchasingTiers.contains(UserTier.premium),
                 isCurrentPlan: currentTier == UserTier.premium,
@@ -356,7 +356,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             _ComparisonTable(billingPeriod: _billingPeriod),
             if (_billingPeriod == _BillingPeriod.annual) ...[
               const SizedBox(height: 6),
-              const Text('* Launch offer pricing', style: TextStyle(color: Colors.white38, fontSize: 11)),
+              const Text('* Save with annual billing vs. paying monthly', style: TextStyle(color: Colors.white38, fontSize: 11)),
             ],
             if (currentTier != null) ...[
               const SizedBox(height: 32),
@@ -393,10 +393,10 @@ class _TierCard extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Struck-through "regular" price shown alongside [priceLabel] when
-  /// [showLaunchOffer] is true -- e.g. the annual plans' undiscounted
-  /// yearly-equivalent of the monthly launch price.
+  /// [showAnnualSavings] is true -- the annual plans' monthly-rate×12
+  /// equivalent, crossed out against the actual discounted annual price.
   final String? regularPrice;
-  final bool showLaunchOffer;
+  final bool showAnnualSavings;
 
   const _TierCard({
     required this.name,
@@ -407,7 +407,7 @@ class _TierCard extends StatelessWidget {
     required this.onTap,
     this.highlight = false,
     this.regularPrice,
-    this.showLaunchOffer = false,
+    this.showAnnualSavings = false,
   });
 
   @override
@@ -426,7 +426,7 @@ class _TierCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
-                  if (showLaunchOffer) ...[
+                  if (showAnnualSavings) ...[
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -435,7 +435,7 @@ class _TierCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: const Text(
-                        'LAUNCH OFFER',
+                        'ANNUAL SAVINGS',
                         style: TextStyle(color: kAccentAmber, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                       ),
                     ),
@@ -494,8 +494,8 @@ class _ComparisonTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final priceRow = billingPeriod == _BillingPeriod.monthly
-        ? ('Price', 'Free', '₹10/mo', '₹20/mo')
-        : ('Price', 'Free', '₹120/yr*', '₹240/yr*');
+        ? ('Price', 'Free', '₹49/mo', '₹99/mo')
+        : ('Price', 'Free', '₹499/yr*', '₹990/yr*');
     final rows = [
       ('New cases / day', '1', '3', 'Unlimited'),
       ('Get New Case anytime', 'No', 'No', 'Yes'),
